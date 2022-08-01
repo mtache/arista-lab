@@ -27,18 +27,18 @@ def groups(task: Task, bar: Progress) -> Result:
         host=task.host
     )
 
-def templates(task: Task, folder: str, bar: Progress) -> Result:
+def templates(task: Task, folder: str, bar: Progress, replace: bool = False) -> Result:
     for (dirpath, _, filenames) in walk(f'templates/{folder}'):
         for file in filenames:
             if file.endswith('.j2'):
-                task.run(task=template, path=dirpath, file=file, bar=bar)
+                task.run(task=template, replace=replace, path=dirpath, file=file, bar=bar)
     return Result(
         host=task.host
     )
 
-def template(task: Task, path: str, file: str, bar: Progress) -> Result:
+def template(task: Task, path: str, file: str, bar: Progress, replace: bool = False) -> Result:
     output = task.run(task=template_file, template=file, path=path)
-    r = task.run(task=napalm_configure, dry_run=False, configuration=output.result)
+    r = task.run(task=napalm_configure, dry_run=False, replace=replace, configuration=output.result)
     bar.console.log(f"{task.host}: {file} template configured.{CONFIG_CHANGED if r.changed else ''}")
     return Result(
         host=task.host
