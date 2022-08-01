@@ -1,0 +1,37 @@
+---
+spine1:
+  port: 44301
+  data:
+    id: 1
+  groups:
+    - spine
+spine2:
+  port: 44302
+  data:
+    id: 2
+  groups:
+    - spine
+leaf1:
+  port: 44311
+  data:
+    id: 11
+  groups:
+    - leaf
+leaf2:
+  port: 44312
+  data:
+    id: 12
+  groups:
+    - leaf
+leaf3:
+  port: 44313
+  data:
+    id: 13
+  groups:
+    - leaf
+leaf4:
+  port: 44314
+  data:
+    id: 14
+  groups:
+    - leaf
