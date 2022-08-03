@@ -1,4 +1,4 @@
 clab-*
-.*.yaml
+.topology.yml
 nornir.log
 cv-onboarding-token
