@@ -3,7 +3,7 @@ from nornir.core.task import Task, Result
 from nornir_napalm.plugins.tasks import napalm_configure
 from rich.progress import Progress
 
-from .config import templates
+from ceos_lab.config import templates
 
 STOP_TERMINATTR = """
 daemon TerminAttr

@@ -1,16 +1,21 @@
 import shutil, nornir
 from pathlib import Path
 from os import walk
+import re
 from nornir.core.task import Task, Result
 from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure
 from nornir_jinja2.plugins.tasks import template_file
 from rich.progress import Progress
 
 CONFIG_CHANGED = ' New configuration applied.'
+MANAGEMENT_REGEX = "interface Management0\n.  ip address .*\n   ipv6 address .*"
 
 #############
 # Templates #
 #############
+
+def _purge_management_config(config):
+    return re.sub(MANAGEMENT_REGEX, '', config)
 
 def groups(task: Task, bar: Progress) -> Result:
     for (dirpath, _, filenames) in walk('templates'):
@@ -38,7 +43,7 @@ def templates(task: Task, folder: str, bar: Progress, replace: bool = False) -> 
 
 def template(task: Task, path: str, file: str, bar: Progress, replace: bool = False) -> Result:
     output = task.run(task=template_file, template=file, path=path)
-    r = task.run(task=napalm_configure, dry_run=False, replace=replace, configuration=output.result)
+    r = task.run(task=napalm_configure, dry_run=False, replace=replace, configuration=_purge_management_config(output.result))
     bar.console.log(f"{task.host}: {file} template configured.{CONFIG_CHANGED if r.changed else ''}")
     return Result(
         host=task.host
@@ -119,7 +124,7 @@ def delete_backups(nornir: nornir.core.Nornir) -> Result:
 def save(nornir: nornir.core.Nornir, folder: Path, topology: dict) -> Result:
     with Progress() as bar:
         task_id = bar.add_task("Save lab configuration", total=len(nornir.inventory.hosts))
-        def _save_config_task(task: Task) -> Result:
+        def save_config(task: Task) -> Result:
             task.run(task=napalm_cli, commands=[f'copy running-config startup-config'])
             startup = Path(f"clab-{topology['name']}") / str(task.host) / 'flash' / 'startup-config'
             config = folder / f'{task.host}.cfg'
@@ -131,10 +136,24 @@ def save(nornir: nornir.core.Nornir, folder: Path, topology: dict) -> Result:
             return Result(
                 host=task.host
             )
-        return nornir.run(task=_save_config_task)
-
+        return nornir.run(task=save_config)
 
 def load(nornir: nornir.core.Nornir, folder: Path, topology: dict) -> Result:
+    with Progress() as bar:
+        task_id = bar.add_task("Load lab configuration", total=len(nornir.inventory.hosts))
+        def load_config(task: Task) -> Result:
+            config = folder / f'{task.host}.cfg'
+            if not config.exists():
+                raise Exception(f'Configuration of {task.host} not found in folder {folder}')            
+            task.run(task=template, replace=False, path=folder, file=f'{task.host}.cfg', bar=bar)
+            bar.console.log(f"{task.host}: Configuration loaded.")
+            bar.update(task_id, advance=1)
+            return Result(
+                host=task.host
+            )
+        return nornir.run(task=load_config)
+
+def _load(nornir: nornir.core.Nornir, folder: Path, topology: dict) -> Result:
     with Progress() as bar:
         task_id = bar.add_task("Load lab configuration", total=len(nornir.inventory.hosts))
         def _load_config_task(task: Task) -> Result:
