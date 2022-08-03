@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 import nornir, click, yaml, sys, os
-from pathlib import Path
-from rich.console import Console
+
 from nornir.core.task import Result
-from nornir_utils.plugins.functions import print_result
+from rich.console import Console
+from pathlib import Path
 
 from ceos_lab import config, cloudvision
+from nornir_utils.plugins.functions import print_result
 
 def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
     try:

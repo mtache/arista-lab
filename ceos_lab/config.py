@@ -1,11 +1,12 @@
-import shutil, nornir
-from pathlib import Path
-from os import walk
-import re
+import shutil, nornir, re
+
 from nornir.core.task import Task, Result
+from rich.progress import Progress
+from pathlib import Path
+
+from os import walk
 from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure
 from nornir_jinja2.plugins.tasks import template_file
-from rich.progress import Progress
 
 CONFIG_CHANGED = ' New configuration applied.'
 MANAGEMENT_REGEX = "interface Management0\n.  ip address .*\n   ipv6 address .*"

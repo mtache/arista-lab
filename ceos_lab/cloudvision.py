@@ -1,8 +1,9 @@
 import os, shutil, pathlib, nornir
+
 from nornir.core.task import Task, Result
-from nornir_napalm.plugins.tasks import napalm_configure
 from rich.progress import Progress
 
+from nornir_napalm.plugins.tasks import napalm_configure
 from ceos_lab.config import templates
 
 STOP_TERMINATTR = """
