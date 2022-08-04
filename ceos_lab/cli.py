@@ -3,9 +3,10 @@ import nornir, click, yaml, sys, os
 from nornir.core.task import AggregatedResult
 from rich.console import Console
 from pathlib import Path
-from typing import List
+from typing import Union, List
 
 from ceos_lab import config, cloudvision
+from nornir_rich.functions import print_failed_hosts
 
 def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
     try:
