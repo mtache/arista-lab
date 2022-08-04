@@ -336,16 +336,16 @@ napalm = ">=4,<5"
 nornir = ">=3,<4"
 
 [[package]]
-name = "nornir-utils"
-version = "0.2.0"
-description = "Collection of plugins and functions for nornir that don't require external dependencies"
+name = "nornir-rich"
+version = "0.1.4"
+description = "Collection of 'nice looking' functions with rich for nornir"
 category = "main"
 optional = false
-python-versions = ">=3.6.2,<4.0.0"
+python-versions = ">=3.7,<4.0"
 
 [package.dependencies]
-colorama = ">=0.4.3,<0.5.0"
 nornir = ">=3,<4"
+rich = ">=12,<13"
 
 [[package]]
 name = "ntc-templates"
@@ -701,7 +701,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "14904dd5b26fe69b0dc7379c3c1d9868409fd36923c6c6a1d5df7d99b7e629ee"
+content-hash = "3de5fabb4233d01ccb567ad6ba22d1f39c9ae9b55fd855460bd5a167261b5879"
 
 [metadata.files]
 atomicwrites = [
@@ -1006,9 +1006,9 @@ nornir-napalm = [
     {file = "nornir_napalm-0.3.0-py3-none-any.whl", hash = "sha256:f7dbf050af9da72101bcf47a3315b1400e9df4951cec172ae9ad509bc3a2ae7b"},
     {file = "nornir_napalm-0.3.0.tar.gz", hash = "sha256:d6ed3bf2e2f23c4ab2256476afd354babbdfc3673726240100e70525b8b88df4"},
 ]
-nornir-utils = [
-    {file = "nornir_utils-0.2.0-py3-none-any.whl", hash = "sha256:b4c430793a74f03affd5ff2d90abc8c67a28c7ff325f48e3a01a9a44ec71b844"},
-    {file = "nornir_utils-0.2.0.tar.gz", hash = "sha256:4de6aaa35e5c1a98e1c84db84a008b0b1e974dc65d88484f2dcea3e30c95fbc2"},
+nornir-rich = [
+    {file = "nornir-rich-0.1.4.tar.gz", hash = "sha256:66679ff1b1451fd58a89e84d501c14e0fda213d80f283bd1bde4a6adb3647ab3"},
+    {file = "nornir_rich-0.1.4-py3-none-any.whl", hash = "sha256:f740f23376dc6cece42188585057bd3df2f0cf7675e43966490d00f6dd28d2ac"},
 ]
 ntc-templates = [
     {file = "ntc_templates-3.0.0-py3-none-any.whl", hash = "sha256:a652ff1659803d98fc088fc1b0838a74533316b0ad627c1220c0424dd82d12b3"},

@@ -1,13 +1,11 @@
-#!/usr/bin/env python3
-
 import nornir, click, yaml, sys, os
 
-from nornir.core.task import Result
+from nornir.core.task import AggregatedResult
 from rich.console import Console
 from pathlib import Path
+from typing import List
 
 from ceos_lab import config, cloudvision
-from nornir_utils.plugins.functions import print_result
 
 def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
     try:
@@ -33,17 +31,9 @@ def cli(ctx, nornir: nornir.core.Nornir, topology: dict):
     ctx.obj['topology'] = topology
 
 @cli.result_callback()
-def print_failed_results(result, nornir, topology):
-    def _print(result):
-        if isinstance(result, Result):
-            print_result(result, vars=['exception'])
-            return
-        for r in result:
-            if r.failed:
-                _print(r)
-    if result.failed:
-        for device in result.failed_hosts:
-            _print(result[device])
+def print_failed_results(results: List[AggregatedResult], nornir, topology):
+    for r in results:
+        print_failed_hosts(r, vars=['exception'])
 
 # Backup on flash
 
@@ -79,13 +69,15 @@ def load(obj: dict, folder: Path):
 # CloudVision
 
 @cli.command(help='Onboard lab to CloudVision')
-@click.option('--token', 'token', type=click.Path(exists=True, readable=True, path_type=Path), help='CloudVision onboarding token')
+@click.option('--token', 'token', type=click.Path(exists=True, readable=True, path_type=Path), required=True, help='CloudVision onboarding token')
 @click.pass_obj
-def onboard(obj: dict, token: Path):
-    config.create_backups(obj['nornir'])
-    return cloudvision.onboard(obj['nornir'], obj['topology'], token)
+def onboard(obj: dict, token: Path) -> List[AggregatedResult]:
+    r = []
+    r.append(cloudvision.onboard(obj['nornir'], obj['topology'], token))
+    r.append(config.create_backups(obj['nornir']))
+    return r
 
-if __name__ == '__main__':
+def main() -> int:
     try:
         cli()
         sys.exit(0)
