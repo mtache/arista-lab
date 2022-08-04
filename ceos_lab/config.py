@@ -3,6 +3,8 @@ import shutil, nornir, re
 from nornir.core.task import Task, Result
 from rich.progress import Progress
 from pathlib import Path
+from ceos_lab import templates
+from importlib.resources import path
 
 from os import walk
 from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure
@@ -18,25 +20,26 @@ MANAGEMENT_REGEX = "interface Management0\n.  ip address .*\n   ipv6 address .*"
 def _purge_management_config(config):
     return re.sub(MANAGEMENT_REGEX, '', config)
 
-def groups(task: Task, bar: Progress):
-    for (dirpath, _, filenames) in walk('templates'):
-        group = None
-        if len(dirpath.split('/')) > 1:
-            # This refers to a group
-            folder = dirpath.split('/')[1]
-            group = folder
-        if group in task.host.groups:
-            for file in filenames:
-                if file.endswith('.j2'):
-                    task.run(task=template, path=dirpath, file=file, bar=bar)
+def apply_group_templates(task: Task, bar: Progress):
+    with path(templates, '.') as p:
+        for (dirpath, _, filenames) in walk(p):
+            if len(dirpath.split('/')) > 1:
+                # This refers to a group
+                folder = dirpath.split('/')[1]
+                if folder in task.host.groups:
+                    for file in filenames:
+                        if file.endswith('.j2'):
+                            task.run(task=apply_template, path=dirpath, file=file, bar=bar)
 
-def templates(task: Task, folder: str, bar: Progress, replace: bool = False):
-    for (dirpath, _, filenames) in walk(f'templates/{folder}'):
+def apply_templates(task: Task, folder: Path, bar: Progress, replace: bool = False):
+    if not folder.exists():
+        raise Exception(f'Could not find template folder {folder}')
+    for (dirpath, _, filenames) in walk(folder):
         for file in filenames:
             if file.endswith('.j2'):
-                task.run(task=template, replace=replace, path=dirpath, file=file, bar=bar)
+                task.run(task=apply_template, replace=replace, path=dirpath, file=file, bar=bar)
 
-def template(task: Task, path: str, file: str, bar: Progress, replace: bool = False):
+def apply_template(task: Task, path: str, file: str, bar: Progress, replace: bool = False):
     output = task.run(task=template_file, template=file, path=path)
     r = task.run(task=napalm_configure, dry_run=False, replace=replace, configuration=_purge_management_config(output.result))
     bar.console.log(f"{task.host}: {file} template configured.{CONFIG_CHANGED if r.changed else ''}")
@@ -115,14 +118,14 @@ def save(nornir: nornir.core.Nornir, folder: Path, topology: dict) -> Result:
             bar.update(task_id, advance=1)
         return nornir.run(task=save_config)
 
-def load(nornir: nornir.core.Nornir, folder: Path, topology: dict) -> Result:
+def load(nornir: nornir.core.Nornir, folder: Path) -> Result:
     with Progress() as bar:
         task_id = bar.add_task("Load lab configuration", total=len(nornir.inventory.hosts))
         def load_config(task: Task):
             config = folder / f'{task.host}.cfg'
             if not config.exists():
                 raise Exception(f'Configuration of {task.host} not found in folder {folder}')            
-            task.run(task=template, replace=False, path=folder, file=f'{task.host}.cfg', bar=bar)
+            task.run(task=apply_template, replace=False, path=folder, file=f'{task.host}.cfg', bar=bar)
             bar.console.log(f"{task.host}: Configuration loaded.")
             bar.update(task_id, advance=1)
         return nornir.run(task=load_config)

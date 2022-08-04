@@ -2,9 +2,10 @@ import os, shutil, pathlib, nornir
 
 from nornir.core.task import Task, Result
 from rich.progress import Progress
-
+from ceos_lab import templates
+from importlib.resources import path
 from nornir_napalm.plugins.tasks import napalm_configure
-from ceos_lab.config import templates
+from ceos_lab.config import apply_templates
 
 STOP_TERMINATTR = """
 daemon TerminAttr
@@ -24,7 +25,8 @@ def onboard(nornir: nornir.core.Nornir, topology: dict, token: pathlib.Path) -> 
             device_path = os.path.join(f"clab-{topology['name']}", str(task.host), 'flash', 'cv-onboarding-token')
             bar.console.log(f"Copying {token} to {device_path}")
             shutil.copyfile(token, device_path)
-            task.run(task=templates, folder='onboard', bar=bar)
+            with path(templates, 'onboard') as p:
+                task.run(task=apply_templates, folder=p, bar=bar)
             task.run(task=napalm_configure, dry_run=False, configuration=STOP_TERMINATTR)
             task.run(task=napalm_configure, dry_run=False, configuration=START_TERMINATTR)
             bar.console.log(f"{task.host}: TerminAttr restarted.")
