@@ -68,7 +68,7 @@ def save(obj: dict, folder: Path) -> AggregatedResult:
 def load(obj: dict, folder: Path) -> List[AggregatedResult]:
     r = []
     r.append(config.create_backups(obj['nornir']))
-    r.append(config.load(obj['nornir'], folder, obj['topology']))
+    r.append(config.load(obj['nornir'], folder))
     return r
 
 # CloudVision
