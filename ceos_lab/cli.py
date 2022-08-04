@@ -32,7 +32,9 @@ def cli(ctx, nornir: nornir.core.Nornir, topology: dict):
     ctx.obj['topology'] = topology
 
 @cli.result_callback()
-def print_failed_results(results: List[AggregatedResult], nornir, topology):
+def print_failed_results(results: Union[List[AggregatedResult], AggregatedResult], nornir, topology):
+    if type(results) is not list:
+        results = [results]
     for r in results:
         print_failed_hosts(r, vars=['exception'])
 
@@ -41,7 +43,7 @@ def print_failed_results(results: List[AggregatedResult], nornir, topology):
 @cli.command(help='Create or delete device configuration backups to flash')
 @click.pass_obj
 @click.option('--delete/--no-delete', default=False, help='Delete the backup on the device flash')
-def backup(obj: dict, delete: bool):
+def backup(obj: dict, delete: bool) -> AggregatedResult:
     if delete:
         return config.delete_backups(obj['nornir'])
     else:
@@ -49,7 +51,7 @@ def backup(obj: dict, delete: bool):
 
 @cli.command(help='Restore configuration backups from flash')
 @click.pass_obj
-def restore(obj: dict): 
+def restore(obj: dict) -> AggregatedResult:
     return config.restore_backups(obj['nornir'])
 
 # Backup locally
@@ -57,15 +59,17 @@ def restore(obj: dict):
 @cli.command(help='Save lab configuration to a folder')
 @click.pass_obj
 @click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Lab configuration folder')
-def save(obj: dict, folder: Path):
+def save(obj: dict, folder: Path) -> AggregatedResult:
     return config.save(obj['nornir'], folder, obj['topology'])
 
 @cli.command(help='Load lab configuration from a folder')
 @click.pass_obj
 @click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Lab configuration folder')
-def load(obj: dict, folder: Path):
-    config.create_backups(obj['nornir'])
-    return config.load(obj['nornir'], folder, obj['topology'])
+def load(obj: dict, folder: Path) -> List[AggregatedResult]:
+    r = []
+    r.append(config.create_backups(obj['nornir']))
+    r.append(config.load(obj['nornir'], folder, obj['topology']))
+    return r
 
 # CloudVision
 
