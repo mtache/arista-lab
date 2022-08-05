@@ -73,7 +73,7 @@ def load(obj: dict, folder: Path) -> List[AggregatedResult]:
 
 # cEOS
 
-@cli.command(help='Configure cEOS Serial Number and System MAC address from inventory')
+@cli.command(help='Configure cEOS serial number and system MAC address')
 @click.pass_obj
 def init(obj: dict) -> List[AggregatedResult]:
     r = []

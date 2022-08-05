@@ -80,12 +80,12 @@ containerlab deploy -t topology.yaml
 ## How to onboard the lab to CloudVision-as-a-service ?
 
 Create a file with a generated secure token. Use the command `lab onboard --token cv-onboarding-token` to configure the lab and start to stream to CloudVision.
-You can destroy a lab and re-onboard it after but you will need to configure the serial number for each node so CloudVision will recognize the devices as previously onboarded.
+You can destroy a lab and re-onboard it after but you will need to configure the correct serial number for each node so CloudVision will recognize the devices as already provisioned.
 
 To correctly re-onboard a lab previously saved to CloudVision, you need to run:
 ```
 lab init
 containerlab deploy -t topology.yaml
-lab onboard --token cv-omnboarding-token
+lab onboard --token cv-onboarding-token
 lab load --folder configs/my-lab
 ```
