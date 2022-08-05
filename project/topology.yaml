@@ -2,6 +2,8 @@ name: ceos-fabric
 
 mgmt:
   external-access: false
+  # Containerlab defaults the management network to be 172.20.20.0/24. Arista uses 172.20 address space.
+  ipv4_subnet: 10.0.42.0/24
 
 topology:
   defaults:
