@@ -1,6 +1,6 @@
 # Containerlab tooling
 
-Simple Python script for managing EOS configuration of containerlab topologies.
+Simple Python script for managing cEOS configuration of containerlab topologies.
 
 ```
 Usage: lab [OPTIONS] COMMAND [ARGS]...
@@ -26,7 +26,7 @@ You can use poetry to build the package with `poetry build` and install the pack
 
 ## Project folder
 
-This repo provides a project example skeleton to use with this tool:
+This repo provides a [project example skeleton](project) to use with this tool:
 ```
 ├── clab-ceos-fabric (Containerlab topology directory - contains binds to device flash)
 │   ├── ansible-inventory.yml
@@ -64,7 +64,7 @@ The default value in the lab tool are defined for the `nornir.yaml` and `topolog
 
 The command `lab backup` will backup all device running-configuration to flash. You can restore it anytime with `lab restore`.
 The command `lab load --folder configs/lsl3-fabric` will load a L3LS fabric configuration initially generated with CloudVision Studios.
-Some commands like `lab load` or `lab onboard` will automatically save configuration to flash, respectively after and before running the command.
+Some commands like `lab load` or `lab onboard` will automatically save configuration to flash, respectively before and after running the command.
 
 > Once the backup configuration is present in flash, it won't be overriden unless you run `lab backup --delete`
 
@@ -80,7 +80,7 @@ containerlab deploy -t topology.yaml
 ## How to onboard the lab to CloudVision-as-a-service ?
 
 Create a file with a generated secure token. Use the command `lab onboard --token cv-onboarding-token` to configure the lab and start to stream to CloudVision.
-You can destroy a lab and re-omboard it after but you will need to configure the serial number for each node so CloudVision will recognize the devices as previously onboarded.
+You can destroy a lab and re-onboard it after but you will need to configure the serial number for each node so CloudVision will recognize the devices as previously onboarded.
 
 To correctly re-onboard a lab previously saved to CloudVision, you need to run:
 ```
