@@ -1,4 +1,4 @@
-from ceos_lab import __version__
+from arista_lab import __version__
 
 
 def test_version():

@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "ceos-lab"
+name = "arista-lab"
 version = "0.1.0"
 description = ""
 authors = ["Matthieu Tache <mtache@arista.com>"]
 
 [tool.poetry.scripts]
-lab = 'ceos_lab.cli:cli'
+lab = 'arista_lab.cli:cli'
 
 [tool.poetry.dependencies]
 python = "^3.8"

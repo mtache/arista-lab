@@ -1,4 +1,4 @@
-TESTING_WHEEL = ceos_lab-0.1.0-py3-none-any.whl
+TESTING_WHEEL = arista_lab-0.1.0-py3-none-any.whl
 
 all: build install
 
@@ -6,7 +6,7 @@ build:
 	poetry build
 
 uninstall:
-	pip3 uninstall ceos-lab -y
+	pip3 uninstall arista-lab -y
 
 install: uninstall
 	pip3 install dist/$(TESTING_WHEEL)
