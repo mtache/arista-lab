@@ -16,6 +16,7 @@ rich = "^12.5.1"
 nornir-napalm = "^0.3.0"
 nornir-jinja2 = "^0.2.0"
 nornir-rich = "^0.1.4"
+docker = "^5.0.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

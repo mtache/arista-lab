@@ -3,35 +3,47 @@ spine1:
   port: 44301
   data:
     id: 1
+    serial_number: 0D96A7E2C6EA681F238F47B405BC062D
+    system_mac: 00:1c:73:16:82:e5
   groups:
     - spine
 spine2:
   port: 44302
   data:
     id: 2
+    serial_number: C9230604164A2AFE645B09AC543E8CD7
+    system_mac: 00:1c:73:f7:9b:ea
   groups:
     - spine
 leaf1:
   port: 44311
   data:
     id: 11
+    serial_number: AE38A609714C5A87E69331F3C4ABC2AD
+    system_mac: 00:1c:73:e4:68:2a
   groups:
     - leaf
 leaf2:
   port: 44312
   data:
     id: 12
+    serial_number: 403B6B57211307457FC2DE0514588C59
+    system_mac: 00:1c:73:02:f8:5c
   groups:
     - leaf
 leaf3:
   port: 44313
   data:
     id: 13
+    serial_number: 43908B559A861A6D51C8FA8A862F6CBA
+    system_mac: 00:1c:73:b2:64:ed
   groups:
     - leaf
 leaf4:
   port: 44314
   data:
     id: 14
+    serial_number: 5405DEC7B7C2A554D1A8005E7936F8B0
+    system_mac: 00:1c:73:36:97:1a
   groups:
     - leaf
