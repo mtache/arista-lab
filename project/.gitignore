@@ -2,3 +2,4 @@ clab-*
 .topology.yml
 nornir.log
 cv-onboarding-token
+*.bak
