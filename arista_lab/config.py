@@ -1,5 +1,6 @@
 import shutil, nornir, re
 
+from typing import Optional
 from nornir.core.task import Task, Result
 from rich.progress import Progress
 from pathlib import Path
@@ -20,29 +21,32 @@ MANAGEMENT_REGEX = "interface Management[0-1]\n(.  ip address .*)?(\n   ipv6 add
 def _purge_management_config(config):
     return re.sub(MANAGEMENT_REGEX, '', config)
 
-def apply_group_templates(task: Task, bar: Progress):
-    with path(templates, '.') as p:
-        for (dirpath, _, filenames) in walk(p):
-            if len(dirpath.split('/')) > 1:
-                # This refers to a group
-                folder = dirpath.split('/')[1]
-                if folder in task.host.groups:
-                    for file in filenames:
-                        if file.endswith('.j2'):
-                            task.run(task=apply_template, path=dirpath, file=file, bar=bar)
-
-def apply_templates(task: Task, folder: Path, bar: Progress, replace: bool = False):
+def apply_templates(nornir: nornir.core.Nornir, folder: Path, replace: bool = False, groups: bool = False) -> Result:
     if not folder.exists():
         raise Exception(f'Could not find template folder {folder}')
+    templates = []
     for (dirpath, _, filenames) in walk(folder):
+        group = None
+        if groups and len(dirpath.split('/')) > 1:
+            # This refers to a group
+            group = dirpath.split('/')[1]
         for file in filenames:
             if file.endswith('.j2'):
-                task.run(task=apply_template, replace=replace, path=dirpath, file=file, bar=bar)
+                templates.append((dirpath, file, group))
+    with Progress() as bar:
+        task_id = bar.add_task("Apply configuration templates to devices", total=len(nornir.inventory.hosts)*len(templates))
+        def apply(task: Task):
+            for t in templates:
+                if groups and not ((group := t[2]) is None or group in task.host.groups):
+                    # Only apply templates specific to a group or templates with no group
+                    bar.update(task_id, advance=1)
+                    continue
+                output = task.run(task=template_file, template=(template := t[1]), path=t[0])
+                r = task.run(task=napalm_configure, dry_run=False, replace=replace, configuration=_purge_management_config(output.result))
+                bar.console.log(f"{task.host}: {template} template configured.{CONFIG_CHANGED if r.changed else ''}")
+                bar.update(task_id, advance=1)
+        return nornir.run(task=apply)
 
-def apply_template(task: Task, path: str, file: str, bar: Progress, replace: bool = False):
-    output = task.run(task=template_file, template=file, path=path)
-    r = task.run(task=napalm_configure, dry_run=False, replace=replace, configuration=_purge_management_config(output.result))
-    bar.console.log(f"{task.host}: {file} template configured.{CONFIG_CHANGED if r.changed else ''}")
 
 ###################
 # Backup to flash #

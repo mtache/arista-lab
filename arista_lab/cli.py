@@ -56,15 +56,15 @@ def restore(obj: dict) -> AggregatedResult:
 
 # Backup locally
 
-@cli.command(help='Save lab configuration to a folder')
+@cli.command(help='Save configuration to a folder')
 @click.pass_obj
-@click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Lab configuration folder')
+@click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Configuration backup folder')
 def save(obj: dict, folder: Path) -> AggregatedResult:
     return config.save(obj['nornir'], folder, obj['topology'])
 
-@cli.command(help='Load lab configuration from a folder')
+@cli.command(help='Load configuration from a folder')
 @click.pass_obj
-@click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Lab configuration folder')
+@click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Configuration backup folder')
 def load(obj: dict, folder: Path) -> List[AggregatedResult]:
     r = []
     r.append(config.create_backups(obj['nornir']))
@@ -73,12 +73,12 @@ def load(obj: dict, folder: Path) -> List[AggregatedResult]:
 
 # Containerlab
 
-@cli.command(help='Start lab containers')
+@cli.command(help='Start containers')
 @click.pass_obj
 def start(obj: dict) -> List[AggregatedResult]:
     return docker.start(obj['nornir'], obj['topology'])
 
-@cli.command(help='Stop lab containers')
+@cli.command(help='Stop containers')
 @click.pass_obj
 def stop(obj: dict) -> List[AggregatedResult]:
     return docker.stop(obj['nornir'], obj['topology'])
@@ -87,20 +87,27 @@ def stop(obj: dict) -> List[AggregatedResult]:
 
 @cli.command(help='Configure cEOS serial number and system MAC address')
 @click.pass_obj
-def init(obj: dict) -> List[AggregatedResult]:
+def init_ceos(obj: dict) -> List[AggregatedResult]:
     r = []
     r.append(ceos.configure_system_mac(obj['nornir'], obj['topology']))
     r.append(ceos.configure_serial_number(obj['nornir'], obj['topology']))
     return r
 
+@cli.command(help='Apply configuration templates')
+@click.pass_obj
+@click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Configuration template folder')
+@click.option('--groups/--no-groups', default=False, help='The template folder contains subfolders with Nornir group names')
+def apply(obj: dict, folder: Path, groups: bool) -> List[AggregatedResult]:
+    return config.apply_templates(obj['nornir'], folder, groups=groups)
+
 # CloudVision
 
-@cli.command(help='Onboard lab to CloudVision')
+@cli.command(help='Onboard to CloudVision')
 @click.option('--token', 'token', type=click.Path(exists=True, readable=True, path_type=Path), required=True, help='CloudVision onboarding token')
 @click.pass_obj
 def onboard(obj: dict, token: Path) -> List[AggregatedResult]:
     r = []
-    r.append(cloudvision.onboard(obj['nornir'], obj['topology'], token))
+    r.extend(cloudvision.onboard(obj['nornir'], obj['topology'], token))
     r.append(config.create_backups(obj['nornir']))
     return r
 

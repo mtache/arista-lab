@@ -11,12 +11,15 @@ Options:
   --help                   Show this message and exit.
 
 Commands:
-  backup   Create or delete device configuration backups to flash
-  init     Configure cEOS Serial Number and System MAC address from...
-  load     Load lab configuration from a folder
-  onboard  Onboard lab to CloudVision
-  restore  Restore configuration backups from flash
-  save     Save lab configuration to a folder
+  apply      Apply configuration templates
+  backup     Create or delete device configuration backups to flash
+  init-ceos  Configure cEOS serial number and system MAC address
+  load       Load configuration from a folder
+  onboard    Onboard to CloudVision
+  restore    Restore configuration backups from flash
+  save       Save configuration to a folder
+  start      Start containers
+  stop       Stop containers
 ```
 
 ## Installation and usage
@@ -28,6 +31,7 @@ You can use poetry to build the package with `poetry build` and install the pack
 
 This repo provides a [project example skeleton](project) to use with this tool:
 ```
+.
 ├── clab-ceos-fabric (Containerlab topology directory - contains binds to device flash)
 │   ├── ansible-inventory.yml
 │   ├── leaf1
@@ -42,23 +46,31 @@ This repo provides a [project example skeleton](project) to use with this tool:
 │   │   └── flash
 │   └── spine2
 │       └── flash
+├── Makefile (contains useful targets)
 ├── configs (arbitraty folder used to store configurations)
-│   └── l3ls-fabric
-│       ├── leaf1.cfg
-│       ├── leaf2.cfg
-│       ├── leaf3.cfg
-│       ├── leaf4.cfg
-│       ├── spine1.cfg
-│       └── spine2.cfg
+│   └── l3ls-fabric
+│       ├── leaf1.cfg
+│       ├── leaf2.cfg
+│       ├── leaf3.cfg
+│       ├── leaf4.cfg
+│       ├── spine1.cfg
+│       └── spine2.cfg
 ├── cv-onboarding-token (optional CVaaS token to onboard the devices)
 ├── inventory (contains Nornir inventory data)
-│   ├── defaults.yaml
-│   ├── groups.yaml
-│   └── hosts.yaml
+│   ├── defaults.yaml
+│   ├── groups.yaml
+│   └── hosts.yaml
 ├── nornir.yaml (default Nornir configuration)
-└── topology.yaml (Containerlab topology file)
+├── startup (folder used to store startup configurations)
+│   ├── leaf1.cfg
+│   ├── leaf2.cfg
+│   ├── leaf3.cfg
+│   ├── leaf4.cfg
+│   ├── spine1.cfg
+│   └── spine2.cfg
+└── topology.clab.yml (Containerlab topology file)
 ```
-The default value in the lab tool are defined for the `nornir.yaml` and `topology.yaml` files but you can specify custom files with the `--nornir`and `--topology` options.
+The default value in the lab tool are defined for the `nornir.yaml` and `topology.clab.yml` files but you can specify custom files with the `--nornir`and `--topology` options.
 
 ## How to manage lab configuration ?
 
@@ -73,8 +85,8 @@ Some commands like `lab load` or `lab onboard` will automatically save configura
 cEOS does not support modifying the serial number or system MAC after the first startup. It needs to be configured before dpeloying the lab with containerlab.
 Configure the [Nornir inventory](project/inventory/hosts.yaml) and run the following commands:
 ```
-lab init
-containerlab deploy -t topology.yaml
+lab init-ceos
+containerlab deploy
 ```
 
 ## How to onboard the lab to CloudVision-as-a-service ?
@@ -84,8 +96,8 @@ You can destroy a lab and re-onboard it after but you will need to configure the
 
 To correctly re-onboard a lab previously saved to CloudVision, you need to run:
 ```
-lab init
-containerlab deploy -t topology.yaml
+lab init-ceos
+containerlab deploy
 lab onboard --token cv-onboarding-token
 lab load --folder configs/my-lab
 ```
