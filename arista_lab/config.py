@@ -128,8 +128,9 @@ def load(nornir: nornir.core.Nornir, folder: Path) -> Result:
         def load_config(task: Task):
             config = folder / f'{task.host}.cfg'
             if not config.exists():
-                raise Exception(f'Configuration of {task.host} not found in folder {folder}')            
-            task.run(task=apply_template, replace=False, path=folder, file=f'{task.host}.cfg', bar=bar)
+                raise Exception(f'Configuration of {task.host} not found in folder {folder}')
+            output = task.run(task=template_file, template=f'{task.host}.cfg', path=folder)
+            r = task.run(task=napalm_configure, dry_run=False, replace=False, configuration=_purge_management_config(output.result))
             bar.console.log(f"{task.host}: Configuration loaded.")
             bar.update(task_id, advance=1)
         return nornir.run(task=load_config)
