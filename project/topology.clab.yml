@@ -11,49 +11,65 @@ topology:
       INTFTYPE: et
   kinds:
     ceos:
-      image: ceos:4.27.2F
+      image: ceos:4.28.3M
   nodes:
     # Host ports = [3 digits node port][0=spine 1=leaf 2=host][id]
     spine1:
       kind: ceos
+      startup-config: startup/spine1.cfg
       ports:
         - 22001:22/tcp
         - 44301:443/tcp
     spine2:
       kind: ceos
+      startup-config: startup/spine2.cfg
       ports:
         - 22002:22/tcp
         - 44302:443/tcp
     leaf1:
       kind: ceos
+      startup-config: startup/leaf1.cfg
       ports:
         - 22011:22/tcp
         - 44311:443/tcp
     leaf2:
       kind: ceos
+      startup-config: startup/leaf2.cfg
       ports:
         - 22012:22/tcp
         - 44312:443/tcp
     leaf3:
       kind: ceos
+      startup-config: startup/leaf3.cfg
       ports:
         - 22013:22/tcp
         - 44313:443/tcp
     leaf4:
       kind: ceos
+      startup-config: startup/leaf4.cfg
       ports:
         - 22014:22/tcp
         - 44314:443/tcp
     host1:
-      kind: linux
-      image: ubuntu:latest
+      kind: ceos
       ports:
         - 22021:22/tcp
+        - 44321:443/tcp
     host2:
-      kind: linux
-      image: ubuntu:latest
+      kind: ceos
       ports:
         - 22022:22/tcp
+        - 44322:443/tcp
+    # host1:
+    #   kind: linux
+    #   image: ubuntu:latest
+    #   ports:
+    #     - 22021:22/tcp
+    # host2:
+    #   kind: linux
+    #   image: ubuntu:latest
+    #   ports:
+    #     - 22022:22/tcp
 
   links:
     - endpoints: ["spine1:et1", "leaf1:et1"]
