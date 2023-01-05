@@ -5,7 +5,7 @@ from rich.console import Console
 from pathlib import Path
 from typing import Union, List
 
-from arista_lab import config, cloudvision, ceos
+from arista_lab import config, cloudvision, ceos, docker
 from nornir_rich.functions import print_failed_hosts
 
 def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
@@ -24,7 +24,7 @@ def _parse_topology(ctx: click.Context, param, value) -> dict:
 
 @click.group()
 @click.option('-n', '--nornir', 'nornir', default='nornir.yaml', type=click.Path(exists=True), callback=_init_nornir, help='Nornir configuration in YAML format.')
-@click.option('-t', '--topology', 'topology', default='topology.yaml', type=click.File('r'), callback=_parse_topology, help='Containerlab topology file.')
+@click.option('-t', '--topology', 'topology', default='topology.clab.yml', type=click.File('r'), callback=_parse_topology, help='Containerlab topology file.')
 @click.pass_context
 def cli(ctx, nornir: nornir.core.Nornir, topology: dict):
     ctx.ensure_object(dict)
@@ -71,7 +71,19 @@ def load(obj: dict, folder: Path) -> List[AggregatedResult]:
     r.append(config.load(obj['nornir'], folder))
     return r
 
-# cEOS
+# Containerlab
+
+@cli.command(help='Start lab containers')
+@click.pass_obj
+def start(obj: dict) -> List[AggregatedResult]:
+    return docker.start(obj['nornir'], obj['topology'])
+
+@cli.command(help='Stop lab containers')
+@click.pass_obj
+def stop(obj: dict) -> List[AggregatedResult]:
+    return docker.stop(obj['nornir'], obj['topology'])
+
+# Configuration
 
 @cli.command(help='Configure cEOS serial number and system MAC address')
 @click.pass_obj

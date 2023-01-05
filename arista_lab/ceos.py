@@ -1,35 +1,10 @@
 import nornir
 
-from nornir.core.task import Task, Result, AggregatedResult
-from nornir.core.inventory import Host
-from typing import List
-from rich.progress import Progress, TaskID
+from nornir.core.task import Task, Result
+from rich.progress import Progress
 from pathlib import Path
-import docker
 
-def restart(task: Task, topology: dict, bar: Progress, task_id: TaskID):
-    client = docker.from_env()
-    client.containers.get(f"clab-{topology['name']}-{task.host.name}").restart()
-    bar.console.log(f"{task.host}: Restarted")
-    bar.update(task_id, advance=1)
-
-def restart_pending(nornir: nornir.core.Nornir, topology: dict, results: List[AggregatedResult]) -> Result:
-    pending_nodes = set()
-    for agg_res in results:
-        for host in agg_res:
-            if agg_res[host].changed:
-                pending_nodes.add(host)
-    with Progress() as bar:
-        task_id = bar.add_task("Restart nodes", total=len(pending_nodes))
-        nodes = nornir.filter(filter_func=lambda h: h.name in pending_nodes)
-        return nodes.run(task=restart, topology=topology, bar=bar, task_id=task_id)
-
-def host_exists(host: Host, topology: dict) -> bool:
-    client = docker.from_env()
-    for container in client.containers.list():
-        if container.name == f"clab-{topology['name']}-{host.name}":
-            return True
-    return False
+from arista_lab import docker
 
 def configure_system_mac(nornir: nornir.core.Nornir, topology: dict) -> Result:
     with Progress() as bar:
@@ -44,7 +19,7 @@ def configure_system_mac(nornir: nornir.core.Nornir, topology: dict) -> Result:
             device_system_mac = device_flash / 'system_mac_address'
             if device_system_mac.exists():
                 bar.console.log(f"{task.host}: System MAC address already configured. Cannot override the system MAC address.")
-                return Result(host=task.host, changed=False)
+                return Result(host=task.host, failed=True)
             bar.console.log(f"Creating {device_system_mac}")
             with device_system_mac.open("w", encoding ="utf-8") as f:
                 f.write(task.host.data['system_mac'])
@@ -61,9 +36,9 @@ def configure_serial_number(nornir: nornir.core.Nornir, topology: dict) -> Resul
                 bar.console.log(f"{task.host}: Serial number omitted in inventory. Not configuring...")
                 bar.update(task_id, advance=1)
                 return Result(host=task.host, changed=False)
-            if host_exists(task.host, topology):
+            if docker.host_exists(task.host, topology):
                 bar.console.log(f"{task.host}: Container has already been created. Cannot override the serial number.")
-                return Result(host=task.host, changed=False)
+                return Result(host=task.host, failed=True)
             device_flash = Path(f"clab-{topology['name']}") / str(task.host) / 'flash'
             device_flash.mkdir(parents=True, exist_ok=True)
             device_serial_number = device_flash / 'ceos-config'
