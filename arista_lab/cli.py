@@ -60,7 +60,7 @@ def restore(obj: dict) -> AggregatedResult:
 @click.pass_obj
 @click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Configuration backup folder')
 def save(obj: dict, folder: Path) -> AggregatedResult:
-    return config.save(obj['nornir'], folder, obj['topology'])
+    return config.save(obj['nornir'], folder)
 
 @cli.command(help='Load configuration from a folder')
 @click.pass_obj
@@ -98,7 +98,10 @@ def init_ceos(obj: dict) -> List[AggregatedResult]:
 @click.option('--folder', 'folder', type=click.Path(writable=True, path_type=Path), required=True, help='Configuration template folder')
 @click.option('--groups/--no-groups', default=False, help='The template folder contains subfolders with Nornir group names')
 def apply(obj: dict, folder: Path, groups: bool) -> List[AggregatedResult]:
-    return config.apply_templates(obj['nornir'], folder, groups=groups)
+    r = []
+    r.append(config.create_backups(obj['nornir']))
+    r.append(config.apply_templates(obj['nornir'], folder, groups=groups))
+    return r
 
 # CloudVision
 

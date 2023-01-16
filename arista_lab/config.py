@@ -1,14 +1,11 @@
-import shutil, nornir, re
+import nornir, re
 
-from typing import Optional
 from nornir.core.task import Task, Result
 from rich.progress import Progress
 from pathlib import Path
-from arista_lab import templates
-from importlib.resources import path
 
 from os import walk
-from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure
+from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get
 from nornir_jinja2.plugins.tasks import template_file
 
 CONFIG_CHANGED = ' New configuration applied.'
@@ -41,7 +38,7 @@ def apply_templates(nornir: nornir.core.Nornir, folder: Path, replace: bool = Fa
                     # Only apply templates specific to a group or templates with no group
                     bar.update(task_id, advance=1)
                     continue
-                output = task.run(task=template_file, template=(template := t[1]), path=t[0])
+                output = task.run(task=template_file, template=(template := t[1]), path=t[0], hosts=nornir.inventory.hosts)
                 r = task.run(task=napalm_configure, dry_run=False, replace=replace, configuration=_purge_management_config(output.result))
                 bar.console.log(f"{task.host}: {template} template configured.{CONFIG_CHANGED if r.changed else ''}")
                 bar.update(task_id, advance=1)
@@ -82,7 +79,6 @@ def restore_backups(nornir: nornir.core.Nornir) -> Result:
                     # If there is a napalm_configure following a restore, configuration will be saved.
                     # This behaviour is acceptable, user can retrieve previous configuration in startup-config
                     # in case of mis-restoring the configuration.
-                    # task.run(task=napalm_cli, commands=[f'copy running-config startup-config'])
                     bar.console.log(f"{task.host}: Backup restored.")
                     bar.update(task_id, advance=1)
                     return
@@ -108,17 +104,17 @@ def delete_backups(nornir: nornir.core.Nornir) -> Result:
 # Save and load configuration #
 ###############################
 
-def save(nornir: nornir.core.Nornir, folder: Path, topology: dict) -> Result:
+def save(nornir: nornir.core.Nornir, folder: Path) -> Result:
     with Progress() as bar:
         task_id = bar.add_task("Save lab configuration", total=len(nornir.inventory.hosts))
         def save_config(task: Task):
             task.run(task=napalm_cli, commands=[f'copy running-config startup-config'])
-            startup = Path(f"clab-{topology['name']}") / str(task.host) / 'flash' / 'startup-config'
+            r = task.run(task=napalm_get, getters=['config'])
             config = folder / f'{task.host}.cfg'
-            bar.console.log(f"Copying {startup} to {config}")
             folder.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(startup, config)
-            bar.console.log(f"{task.host}: Configuration saved.")
+            with open(config, "w") as file:
+                file.write(r[0].result['config']['running'])
+            bar.console.log(f"{task.host}: Configuration saved to {config}")
             bar.update(task_id, advance=1)
         return nornir.run(task=save_config)
 
@@ -130,7 +126,7 @@ def load(nornir: nornir.core.Nornir, folder: Path) -> Result:
             if not config.exists():
                 raise Exception(f'Configuration of {task.host} not found in folder {folder}')
             output = task.run(task=template_file, template=f'{task.host}.cfg', path=folder)
-            r = task.run(task=napalm_configure, dry_run=False, replace=False, configuration=_purge_management_config(output.result))
+            task.run(task=napalm_configure, dry_run=False, replace=False, configuration=_purge_management_config(output.result))
             bar.console.log(f"{task.host}: Configuration loaded.")
             bar.update(task_id, advance=1)
         return nornir.run(task=load_config)
