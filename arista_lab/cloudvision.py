@@ -3,7 +3,7 @@ import os, shutil, pathlib, nornir
 from nornir.core.task import Task, Result
 from rich.progress import Progress
 from arista_lab import templates
-from importlib.resources import path
+from importlib.resources import files
 from nornir_napalm.plugins.tasks import napalm_configure
 from arista_lab import config
 
@@ -21,6 +21,6 @@ def onboard(nornir: nornir.core.Nornir, topology: dict, token: pathlib.Path) -> 
             task.run(task=napalm_configure, dry_run=False, configuration=CLEAN_TERMINATTR)
             bar.update(task_id, advance=1)
         r.append(nornir.run(task=onboard_device))
-    with path(templates, 'onboard') as p:
-        r.append(config.apply_templates(nornir=nornir, folder=p))
+    p = files(templates) / 'onboard'
+    r.append(config.apply_templates(nornir=nornir, folder=p))
     return r

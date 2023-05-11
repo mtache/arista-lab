@@ -1,0 +1,56 @@
+{% for id in range(1, vars.max_loopback + 1) %}
+{% if loop.index0 < vars.hosts|length or loop.index0 < vars.hosts|length %}
+interface Loopback {{ id }}
+ {% if loop.index0 < vars.hosts|length %}
+ ip address {{ vars.hosts[loop.index0] }}
+ {% endif %}
+ {% if loop.index0 < vars.hosts_ipv6|length %}
+ ipv6 address {{ vars.hosts_ipv6[loop.index0] }}
+ {% endif %}
+{% endif %}
+{% endfor %}
+!
+ip routing
+!
+ipv6 unicast-routing
+!
+ip prefix-list {{ vars.name }}-PREFIXES
+   {% for prefix in vars.prefixes %}
+   seq {{ loop.index * 10 }} permit {{ prefix }}
+   {% endfor %}
+!
+ipv6 prefix-list {{ vars.name }}-PREFIXES
+   {% for prefix in vars.prefixes_ipv6 %}
+   seq {{ loop.index * 10 }} permit {{ prefix }}
+   {% endfor %}
+!
+route-map {{ vars.name }}-PREPEND permit 10
+   match ip address prefix-list {{ vars.name }}-PREFIXES
+   set as-path prepend {% for n in range(2, vars.as_path_length + 2) %}{{ vars.asn * n % 23455 }} {% endfor %}
+
+!
+route-map {{ vars.name }}-PREPEND permit 20
+   match ipv6 address prefix-list {{ vars.name }}-PREFIXES
+   set as-path prepend {% for n in range(2, vars.as_path_length + 2) %}{{ vars.asn * n % 23455 }} {% endfor %}
+
+!
+router bgp {{ vars.asn }}
+   no bgp default ipv4-unicast
+   neighbor {{ vars.neighbor_name }} peer group
+   neighbor {{ vars.neighbor_name }} remote-as {{ vars.neighbor_as }}
+   neighbor {{ vars.neighbor_name }} password 0 {{ vars.name }}
+   neighbor {{ vars.neighbor_name }}-V6 peer group
+   neighbor {{ vars.neighbor_name }}-V6 remote-as {{ vars.neighbor_as }}
+   neighbor {{ vars.neighbor_name }}-V6 password 0 {{ vars.name }}
+   neighbor {{ vars.neighbor_ipv4 }} peer group {{ vars.neighbor_name }}
+   neighbor {{ vars.neighbor_ipv6 }} peer group {{ vars.neighbor_name }}-V6
+   redistribute connected
+   !
+   address-family ipv4
+      neighbor {{ vars.neighbor_name }} route-map {{ vars.name }}-PREPEND out
+      neighbor {{ vars.neighbor_name }} activate
+   !
+   address-family ipv6
+      neighbor {{ vars.neighbor_name }}-V6 route-map {{ vars.name }}-PREPEND out
+      neighbor {{ vars.neighbor_name }}-V6 activate
+   !

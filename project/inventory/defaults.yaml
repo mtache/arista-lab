@@ -1,7 +1,0 @@
----
-hostname: 127.0.0.1
-username: admin
-password: admin
-platform: eos
-data:
-  type: network_device
