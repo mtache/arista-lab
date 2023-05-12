@@ -1,0 +1,16 @@
+interface {{ interface.name }}
+    no switchport
+    description {{ interface.description }}
+    {% if 'ipv4' in interface %}
+    ip address {{ interface.ipv4 }}
+    {% endif %}
+    {% if 'ipv6' in interface %}
+    ipv6 address {{ interface.ipv6 }}
+    {% endif %}
+    {% if 'isis' in interface and 'instance' in interface.isis %}
+    isis enable {{ interface.isis.instance }}
+    isis network point-to-point
+    {% if 'metric' in interface.isis %}
+    isis metric {{ interface.isis.metric }}
+    {% endif %}
+    {% endif %}

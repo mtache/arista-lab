@@ -121,13 +121,13 @@ def apply(obj: dict, folder: Path, groups: bool) -> List[AggregatedResult]:
     return r
 
 
-@cli.command(help='Configure point-to-point interfaces from an IP plan XLSX file')
+@cli.command(help='Configure point-to-point interfaces')
 @click.pass_obj
-@click.option('--plan', 'plan', type=click.Path(exists=True, readable=True, path_type=Path), required=True, help='IP Plan XLSX file')
-def configure_interfaces(obj: dict, plan: Path) -> List[AggregatedResult]:
+@click.option('--links', 'links', type=click.Path(exists=True, readable=True, path_type=Path), required=True, help='YAML File describing lab links')
+def interfaces(obj: dict, links: Path) -> List[AggregatedResult]:
     r = []
     r.append(config.create_backups(obj['nornir']))
-    r.append(config.configure_interfaces(obj['nornir'], plan))
+    r.append(config.configure_interfaces(obj['nornir'], links))
     return r
 
 
@@ -135,7 +135,7 @@ def configure_interfaces(obj: dict, plan: Path) -> List[AggregatedResult]:
 @click.pass_obj
 @click.option('--group', 'group', type=str, required=True, help='Nornir group of peering devices')
 @click.option('--backbone', 'backbone', type=str, required=True, help='Nornir group of the backbone')
-def configure_peering(obj: dict, group: Path, backbone: Path) -> List[AggregatedResult]:
+def peering(obj: dict, group: Path, backbone: Path) -> List[AggregatedResult]:
     r = []
     r.append(config.create_backups(obj['nornir'].filter(F(groups__contains=group))))
     r.append(config.configure_peering(obj['nornir'], group, backbone))

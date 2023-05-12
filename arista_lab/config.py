@@ -5,6 +5,8 @@ from openpyxl import load_workbook
 from importlib.resources import files
 from arista_lab import templates
 from datetime import datetime, timedelta
+from yaml import safe_load
+import ipaddress
 
 import requests
 import ipaddress
@@ -86,72 +88,61 @@ def apply_templates(
 
 
 def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
-    LINK_PARAM = ["ISIS Instance", "ISIS Metric"]
-    INTERFACE_PARAM = ["Device", "Interface", "IPv4 Address", "IPv6 Address"]
-    DESCRIPTION = "description"
+    DESCRIPTION_KEY = 'description'
+    IPV4_KEY = 'ipv4'
+    IPV4_SUBNET_KEY = 'ipv4_subnet'
+    IPV6_KEY = 'ipv6'
+    IPV6_SUBNET_KEY = 'ipv6_subnet'
+    ISIS_KEY = 'isis'
 
-    def _parse_ip_plan(file: Path):
+
+    def _parse_links(file: Path):
         interfaces = {}
-        workbook = load_workbook(filename=file, read_only=True)
-        sheet = workbook.active
-
-        def links(sheet):
-            rows = sheet.rows
-            columns = [c.value for c in next(rows)]
-            for row in rows:
-                values = [c.value for c in row]
-                yield dict(zip(columns, values))
-
-        # Create a dictionnary to configure interfaces on a given device
-        for link in links(sheet):
-            for device_id, neighbor_id in (range(1, 3), range(2, 0, -1)):
-                device = link[f"{INTERFACE_PARAM[0]} {device_id}"]
-                interface = link[f"{INTERFACE_PARAM[1]} {device_id}"]
-                neighbor = link[f"{INTERFACE_PARAM[0]} {neighbor_id}"]
-                neighbor_interface = link[f"{INTERFACE_PARAM[1]} {neighbor_id}"]
+        with open(file, "r", encoding="UTF-8") as file:
+            links = safe_load(file)['links']
+            for link in links:
+                if len(link['endpoints']) != 2:
+                    raise Exception(f"Cannot parse '{file}': entry with 'endpoints' key must have a value in the format '['device1:etN', 'device2:etN']'")
+                # for device_id, neighbor_id in (range(2), range(1,-1,-1)):
+                device = link['endpoints'][0].split(':')[0]
+                neighbor = link['endpoints'][1].split(':')[0]
+                interface = link['endpoints'][0].split(':')[1]
+                neighbor_interface = link['endpoints'][1].split(':')[1]
                 if device not in interfaces:
                     interfaces[device] = {}
-                interfaces[device][interface] = {
-                    DESCRIPTION: f"to {neighbor} {neighbor_interface}",
-                    INTERFACE_PARAM[2]: link[f"{INTERFACE_PARAM[2]} {device_id}"],
-                    INTERFACE_PARAM[3]: link[f"{INTERFACE_PARAM[3]} {device_id}"],
-                    LINK_PARAM[0]: link[f"{LINK_PARAM[0]}"],
-                    LINK_PARAM[1]: link[f"{LINK_PARAM[1]}"],
-                }
-        workbook.close()
+                if neighbor not in interfaces:
+                    interfaces[neighbor] = {}
+                interfaces[device][interface] = {DESCRIPTION_KEY: f"to {neighbor} {neighbor_interface}"}
+                interfaces[neighbor][neighbor_interface] = {DESCRIPTION_KEY: f"to {device} {interface}"}
+                if ISIS_KEY in link:
+                    interfaces[device][interface].update({ISIS_KEY: link[ISIS_KEY]})
+                if IPV4_SUBNET_KEY in link:
+                    network = ipaddress.ip_network(link[IPV4_SUBNET_KEY])
+                    if network.prefixlen != 31:
+                        raise Exception(f"Subnet {network} is not a /31 subnet")
+                    interfaces[device][interface].update({IPV4_KEY: f'{network[0]}/{network.prefixlen}'})
+                    interfaces[neighbor][neighbor_interface].update({IPV4_KEY: f'{network[1]}/{network.prefixlen}'})
+                if IPV6_SUBNET_KEY in link:
+                    network = ipaddress.ip_network(link[IPV6_SUBNET_KEY])
+                    if network.prefixlen != 127:
+                        raise Exception(f"Subnet {network} is not a /127 subnet")
+                    interfaces[device][interface].update({IPV6_KEY: f'{network[0]}/{network.prefixlen}'})
+                    interfaces[neighbor][neighbor_interface].update({IPV6_KEY: f'{network[1]}/{network.prefixlen}'})
         return interfaces
 
-    ip_plan = _parse_ip_plan(file)
+    links = _parse_links(file)
     with Progress() as bar:
         task_id = bar.add_task(
             "Configure point-to-point interfaces", total=len(nornir.inventory.hosts)
         )
 
         def configure_interfaces(task: Task):
-            config = ""
-            for interface, params in ip_plan[task.host.name].items():
-                config += (
-                    f"interface {interface}\n"
-                    + "no switchport\n"
-                    + f"description {params[DESCRIPTION]}\n"
-                )
-                if params[INTERFACE_PARAM[2]]:
-                    config += f"ip address {params[INTERFACE_PARAM[2]]}\n"
-                if params[INTERFACE_PARAM[3]]:
-                    config += f"ipv6 address {params[INTERFACE_PARAM[3]]}\n"
-                if params[LINK_PARAM[0]]:
-                    config += (
-                        f"isis enable {params[LINK_PARAM[0]]}\n"
-                        + "isis network point-to-point\n"
-                    )
-                    if params[LINK_PARAM[1]]:
-                        config += f"isis metric {params[LINK_PARAM[1]]}\n"
-                r = task.run(
-                    task=napalm_configure,
-                    dry_run=False,
-                    replace=False,
-                    configuration=config,
-                )
+            for interface, params in links[task.host.name].items():
+                interface_dict = params
+                interface_dict['name'] = interface
+                p = files(templates) / 'interfaces'
+                output = task.run(task=template_file, template='point-to-point.j2', path=p, interface=interface_dict)
+                r = task.run(task=napalm_configure, dry_run=False, configuration=output.result)
                 bar.console.log(
                     f"{task.host}: Point-to-point interfaces configured.{CONFIG_CHANGED if r.changed else ''}"
                 )
