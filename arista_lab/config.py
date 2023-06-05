@@ -116,6 +116,7 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
                 interfaces[neighbor][neighbor_interface] = {DESCRIPTION_KEY: f"to {device} {interface}"}
                 if ISIS_KEY in link:
                     interfaces[device][interface].update({ISIS_KEY: link[ISIS_KEY]})
+                    interfaces[neighbor][neighbor_interface].update({ISIS_KEY: link[ISIS_KEY]})
                 if IPV4_SUBNET_KEY in link:
                     network = ipaddress.ip_network(link[IPV4_SUBNET_KEY])
                     if network.prefixlen != 31:
@@ -153,7 +154,7 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
 
 def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: str) -> Result:
 
-    def _get_announced_prefixes(asn: int):
+    def _build_vars(asn: int):
         start_time = datetime.now() - timedelta(days = 10)
         url = f"https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS{asn}&starttime={start_time.strftime('%Y-%m-%dT%H:%M')}"
         r = requests.get(url)
@@ -161,15 +162,12 @@ def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: st
             prefixes = []
             for prefix in r.json()["data"]["prefixes"]:
                 prefixes.append(prefix["prefix"])
-            return prefixes
         else:
             raise Exception(f'Could not get announced prefixes for AS{asn}')
-
-    def _build_networks_vars(networks):
-        networks = [ipaddress.ip_network(p) for p in networks]
-        for network in networks:
-            if any(network != n and network.overlaps(n) for n in networks):
-                networks.remove(network)
+        networks = []
+        for network in [ipaddress.ip_network(p) for p in prefixes]:
+            if not any((network != n and network.overlaps(n)) for n in [ipaddress.ip_network(p) for p in prefixes]):
+                networks.append(network)
 
         hosts = []
         hosts_ipv6 = []
@@ -185,8 +183,8 @@ def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: st
 
         return {'hosts': hosts,
                 'hosts_ipv6': hosts_ipv6,
-                'prefixes': hosts,
-                'prefixes_ipv6': hosts_ipv6}
+                'prefixes': prefixes,
+                'prefixes_ipv6': prefixes_ipv6}
 
     with Progress() as bar:
         task_id = bar.add_task(
@@ -195,7 +193,11 @@ def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: st
 
         def configure_peering(task: Task):
             MAX_LOOPBACKS = 2100
-            vars = _build_networks_vars(_get_announced_prefixes(task.host.data['asn']))
+            vars = _build_vars(task.host.data['asn'])
+            bar.console.log(f"{task.host}: Configuring {len(vars['prefixes'])} IPv4 prefixes for ISP {task.host.data['isp']}")
+            #bar.console.log(f"{task.host}: {vars['prefixes']}")
+            bar.console.log(f"{task.host}: Configuring {len(vars['prefixes_ipv6'])} IPv6 prefixes for ISP {task.host.data['isp']}")
+            #bar.console.log(f"{task.host}: {vars['prefixes_ipv6']}")
             vars.update({'name': task.host.data['isp'],
                          'asn': task.host.data['asn'],
                          'description': task.host.data['description'],
