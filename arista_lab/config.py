@@ -75,7 +75,7 @@ def apply_templates(
                 )
                 config += output.result
                 bar.console.log(
-                    f"{task.host}: {template} template rendered."
+                    f"{task.host}: {template}"
                 )
                 bar.update(task_id, advance=1)
                 config += '\n'
