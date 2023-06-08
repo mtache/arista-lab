@@ -7,6 +7,7 @@ from arista_lab import templates
 from datetime import datetime, timedelta
 from yaml import safe_load
 import ipaddress
+import time
 
 import requests
 import ipaddress
@@ -17,6 +18,8 @@ from rich.progress import Progress
 
 from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get
 from nornir_jinja2.plugins.tasks import template_file
+from nornir.core.exceptions import NornirSubTaskError
+from napalm.base.exceptions import SessionLockedException
 
 CONFIG_CHANGED = " New configuration applied."
 MANAGEMENT_REGEX = (
@@ -56,6 +59,7 @@ def apply_templates(
         )
 
         def apply_templates(task: Task):
+            config = ""
             for t in templates:
                 if groups and not (
                     (group := t[2]) is None or group in task.host.groups
@@ -69,17 +73,21 @@ def apply_templates(
                     path=t[0],
                     hosts=nornir.inventory.hosts,
                 )
-                r = task.run(
-                    task=napalm_configure,
-                    dry_run=False,
-                    replace=replace,
-                    configuration=_purge_management_config(output.result),
-                )
+                config += output.result
                 bar.console.log(
-                    f"{task.host}: {template} template configured.{CONFIG_CHANGED if r.changed else ''}"
+                    f"{task.host}: {template} template rendered."
                 )
                 bar.update(task_id, advance=1)
-
+                config += '\n'
+            r = task.run(
+                task=napalm_configure,
+                dry_run=False,
+                replace=replace,
+                configuration=_purge_management_config(config),
+            )
+            bar.console.log(
+                f"{task.host}: Templates configured.{CONFIG_CHANGED if r.changed else ''}"
+            )
         return nornir.run(task=apply_templates)
 
 #########
@@ -138,24 +146,26 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
         )
 
         def configure_interfaces(task: Task):
+            config = ""
             for interface, params in links[task.host.name].items():
-                interface_dict = params
-                interface_dict['name'] = interface
                 p = files(templates) / 'interfaces'
-                output = task.run(task=template_file, template='point-to-point.j2', path=p, interface=interface_dict)
-                r = task.run(task=napalm_configure, dry_run=False, configuration=output.result)
+                output = task.run(task=template_file, template='point-to-point.j2', path=p, interface={'name': interface, **params})
+                config += output.result
                 bar.console.log(
-                    f"{task.host}: Point-to-point interfaces configured.{CONFIG_CHANGED if r.changed else ''}"
+                    f"{task.host}: Interface {interface} ({'IPv4' if IPV4_KEY in params else ''} {'IPv6' if IPV6_KEY in params else ''} {'ISIS' if ISIS_KEY in params else ''}): {params[DESCRIPTION_KEY]}"
                 )
                 bar.update(task_id, advance=1)
-
+            r = task.run(task=napalm_configure, dry_run=False, configuration=config)
+            bar.console.log(
+                f"{task.host}: Interfaces configured.{CONFIG_CHANGED if r.changed else ''}"
+            )
         return nornir.run(task=configure_interfaces)
 
 
 def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: str) -> Result:
 
     def _build_vars(asn: int):
-        start_time = datetime.now() - timedelta(days = 10)
+        start_time = datetime.now() - timedelta(days=10)
         url = f"https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS{asn}&starttime={start_time.strftime('%Y-%m-%dT%H:%M')}"
         r = requests.get(url)
         if r.ok:
