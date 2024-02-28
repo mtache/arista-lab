@@ -51,50 +51,19 @@ containerlab deploy
 
 ### How to onboard the lab to CloudVision ?
 
-Onboard to CloudVision
 You can destroy a lab and re-onboard it in Cloudvision but you will need to configure the same correct serial number and system MAC address for each node so CloudVision will recognize the devices as already provisioned.
 
 To correctly re-onboard a lab previously saved to CloudVision, you need to run:
 ```
-lab init-ceos
+lab init-ceos --token cv-onboarding-token
 containerlab deploy
 ```
 
-> Ensure that the TerminAttr configuration and adequate username ares part of the startup config. Below is an example of minimal startup config:
-```
-username admin privilege 15 role network-admin secret arista
-username cvpadmin privilege 15 role network-admin secret arista
-!
-aaa authorization exec default local
-!
-service routing protocols model multi-agent
-!
-platform tfa personality arfa
-!
-management api http-commands
-   no shutdown
-!
-daemon TerminAttr
-   exec /usr/bin/TerminAttr -cvcompression=gzip -smashexcludes=ale,flexCounter,hardware,kni,pulse,strata -cvaddr=192.168.100.100:9910 -cvauth=token,/tmp/token -cvvrf=default -taillogs
-   no shutdown
-!
-```
+> Ensure that a correct TerminAttr configuration is part of the startup config. Below is an example of minimal startup config:
 
 Then go to your CloudVision instance, `Devices -> Device Registration -> Device Onboarding -> Onboard Provisioned EOS Devices` to re-onboard the devices by provisioning the certificates.
 
 > It is a good idea (but not mandatory) to have fixed management IP addresses defined in the `topology.clab.yml` file.
-
-### How to onboard the lab to CloudVision-as-a-service ?
-
-Create a file with a generated secure token. Use the command `lab onboard --token cv-onboarding-token` to configure the lab and start to stream to CloudVision.
-You can destroy a lab and re-onboard it in Cloudvision but you will need to configure the same correct serial number and system MAC address for each node so CloudVision will recognize the devices as already provisioned.
-
-To correctly re-onboard a lab previously saved to CloudVision, you need to run:
-```
-lab init-ceos
-containerlab deploy
-lab onboard --token cv-onboarding-token
-```
 
 ### How to configure point-to-point links ?
 
@@ -156,8 +125,3 @@ The structure below provides an example on how to structure a lab project:
 └── topology.clab.yml (containerlab topology file)
 ```
 > Default values are defined for the `nornir.yaml` and `topology.clab.yml` files but you can specify custom file names with the `--nornir`and `--topology` options.
-
-### Project examples
-
-- EVPN-VXLAN Fabric: TODO
-- ISIS-BGP IP Backbone: TODO
