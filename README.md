@@ -59,7 +59,7 @@ lab init-ceos --token cv-onboarding-token
 containerlab deploy
 ```
 
-> Ensure that a correct TerminAttr configuration is part of the startup config. Below is an example of minimal startup config:
+> Ensure that a correct TerminAttr configuration is part of the startup config, or you can use the `lab onboard` command.
 
 Then go to your CloudVision instance, `Devices -> Device Registration -> Device Onboarding -> Onboard Provisioned EOS Devices` to re-onboard the devices by provisioning the certificates.
 
@@ -108,7 +108,7 @@ The structure below provides an example on how to structure a lab project:
 │       ├── leaf4.cfg
 │       ├── spine1.cfg
 │       └── spine2.cfg
-├── cv-onboarding-token (optional CVaaS token to onboard the devices)
+├── cv-onboarding-token (optional CloudVision token to onboard the devices)
 ├── inventory (contains Nornir inventory data)
 │   ├── defaults.yaml
 │   ├── groups.yaml
