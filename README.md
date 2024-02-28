@@ -14,10 +14,10 @@ Options:
 Commands:
   apply       Apply configuration templates
   backup      Create or delete device configuration backups to flash
-  init-ceos   Configure cEOS serial number and system MAC address
+  init-ceos   Configure cEOS serial number, system MAC address and copy CloudVision token to flash
   interfaces  Configure point-to-point interfaces
   load        Load configuration from a folder
-  onboard     Onboard to CloudVision
+  onboard     Onboard to CloudVision (N.B: TerminAttr uses default VRF and CVaaS cv-staging cluster)
   peering     Configure peering devices
   restore     Restore configuration backups from flash
   save        Save configuration to a folder
