@@ -1,21 +1,21 @@
 from pathlib import Path
 import re
 from os import walk
-from importlib.resources import files
+from importlib.resources import files, as_file
 from arista_lab import templates
 from datetime import datetime, timedelta
 from yaml import safe_load
 import ipaddress
 
+from typing import Any
 import requests
-import ipaddress
 import nornir
 from nornir.core.task import Task, Result
 from nornir.core.filter import F
 from rich.progress import Progress
 
-from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get
-from nornir_jinja2.plugins.tasks import template_file
+from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get  #type: ignore[import-untyped]
+from nornir_jinja2.plugins.tasks import template_file  #type: ignore[import-untyped]
 
 CONFIG_CHANGED = " New configuration applied."
 MANAGEMENT_REGEX = (
@@ -100,9 +100,9 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
     ISIS_KEY = "isis"
 
     def _parse_links(file: Path):
-        interfaces = {}
-        with open(file, "r", encoding="UTF-8") as file:
-            links = safe_load(file)["links"]
+        interfaces: dict[str, Any] = {}
+        with file.open(mode="r", encoding="UTF-8") as f:
+            links = safe_load(f)["links"]
             for link in links:
                 if len(link["endpoints"]) != 2:
                     raise Exception(
@@ -253,6 +253,7 @@ def configure_peering(
                     ],
                 }
             )
+            
             p = files(templates) / "peering"
             output = task.run(task=template_file, template="isp.j2", path=p, vars=vars)
             r = task.run(
@@ -269,7 +270,7 @@ def configure_peering(
 CLEAN_TERMINATTR = "no daemon TerminAttr"
 
 
-def onboard_cloudvision(nornir: nornir.core.Nornir) -> Result:
+def onboard_cloudvision(nornir: nornir.core.Nornir) -> list[Result]:
     r = []
     with Progress() as bar:
         task_id = bar.add_task(
@@ -284,8 +285,9 @@ def onboard_cloudvision(nornir: nornir.core.Nornir) -> Result:
             bar.update(task_id, advance=1)
 
         r.append(nornir.run(task=onboard_device))
-    p = files(templates) / "onboard"
-    r.append(apply_templates(nornir=nornir, folder=p))
+    with as_file(files(templates)) as t:
+        p = t / "onboard"
+        r.append(apply_templates(nornir=nornir, folder=p))
     return r
 
 

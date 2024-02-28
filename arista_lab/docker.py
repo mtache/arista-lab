@@ -4,7 +4,7 @@ from nornir.core.task import Task, Result, AggregatedResult
 from nornir.core.inventory import Host
 from typing import List
 from rich.progress import Progress, TaskID
-import docker
+import docker  #type: ignore[import-untyped]
 
 def stop(nornir: nornir.core.Nornir, topology: dict) -> Result:
     with Progress() as bar:
