@@ -3,6 +3,7 @@ TESTING_WHEEL = arista_lab-0.1.0-py3-none-any.whl
 all: build install
 
 build:
+	poetry update
 	poetry build
 
 uninstall:

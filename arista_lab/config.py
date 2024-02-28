@@ -1,13 +1,11 @@
 from pathlib import Path
 import re
 from os import walk
-from openpyxl import load_workbook
 from importlib.resources import files
 from arista_lab import templates
 from datetime import datetime, timedelta
 from yaml import safe_load
 import ipaddress
-import time
 
 import requests
 import ipaddress
@@ -18,8 +16,6 @@ from rich.progress import Progress
 
 from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get
 from nornir_jinja2.plugins.tasks import template_file
-from nornir.core.exceptions import NornirSubTaskError
-from napalm.base.exceptions import SessionLockedException
 
 CONFIG_CHANGED = " New configuration applied."
 MANAGEMENT_REGEX = (
@@ -74,11 +70,9 @@ def apply_templates(
                     hosts=nornir.inventory.hosts,
                 )
                 config += output.result
-                bar.console.log(
-                    f"{task.host}: {template}"
-                )
+                bar.console.log(f"{task.host}: {template}")
                 bar.update(task_id, advance=1)
-                config += '\n'
+                config += "\n"
             r = task.run(
                 task=napalm_configure,
                 dry_run=False,
@@ -88,7 +82,9 @@ def apply_templates(
             bar.console.log(
                 f"{task.host}: Templates configured.{CONFIG_CHANGED if r.changed else ''}"
             )
+
         return nornir.run(task=apply_templates)
+
 
 #########
 # Tools #
@@ -96,47 +92,62 @@ def apply_templates(
 
 
 def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
-    DESCRIPTION_KEY = 'description'
-    IPV4_KEY = 'ipv4'
-    IPV4_SUBNET_KEY = 'ipv4_subnet'
-    IPV6_KEY = 'ipv6'
-    IPV6_SUBNET_KEY = 'ipv6_subnet'
-    ISIS_KEY = 'isis'
-
+    DESCRIPTION_KEY = "description"
+    IPV4_KEY = "ipv4"
+    IPV4_SUBNET_KEY = "ipv4_subnet"
+    IPV6_KEY = "ipv6"
+    IPV6_SUBNET_KEY = "ipv6_subnet"
+    ISIS_KEY = "isis"
 
     def _parse_links(file: Path):
         interfaces = {}
         with open(file, "r", encoding="UTF-8") as file:
-            links = safe_load(file)['links']
+            links = safe_load(file)["links"]
             for link in links:
-                if len(link['endpoints']) != 2:
-                    raise Exception(f"Cannot parse '{file}': entry with 'endpoints' key must have a value in the format '['device1:etN', 'device2:etN']'")
+                if len(link["endpoints"]) != 2:
+                    raise Exception(
+                        f"Cannot parse '{file}': entry with 'endpoints' key must have a value in the format '['device1:etN', 'device2:etN']'"
+                    )
                 # for device_id, neighbor_id in (range(2), range(1,-1,-1)):
-                device = link['endpoints'][0].split(':')[0]
-                neighbor = link['endpoints'][1].split(':')[0]
-                interface = link['endpoints'][0].split(':')[1]
-                neighbor_interface = link['endpoints'][1].split(':')[1]
+                device = link["endpoints"][0].split(":")[0]
+                neighbor = link["endpoints"][1].split(":")[0]
+                interface = link["endpoints"][0].split(":")[1]
+                neighbor_interface = link["endpoints"][1].split(":")[1]
                 if device not in interfaces:
                     interfaces[device] = {}
                 if neighbor not in interfaces:
                     interfaces[neighbor] = {}
-                interfaces[device][interface] = {DESCRIPTION_KEY: f"to {neighbor} {neighbor_interface}"}
-                interfaces[neighbor][neighbor_interface] = {DESCRIPTION_KEY: f"to {device} {interface}"}
+                interfaces[device][interface] = {
+                    DESCRIPTION_KEY: f"to {neighbor} {neighbor_interface}"
+                }
+                interfaces[neighbor][neighbor_interface] = {
+                    DESCRIPTION_KEY: f"to {device} {interface}"
+                }
                 if ISIS_KEY in link:
                     interfaces[device][interface].update({ISIS_KEY: link[ISIS_KEY]})
-                    interfaces[neighbor][neighbor_interface].update({ISIS_KEY: link[ISIS_KEY]})
+                    interfaces[neighbor][neighbor_interface].update(
+                        {ISIS_KEY: link[ISIS_KEY]}
+                    )
                 if IPV4_SUBNET_KEY in link:
                     network = ipaddress.ip_network(link[IPV4_SUBNET_KEY])
                     if network.prefixlen != 31:
                         raise Exception(f"Subnet {network} is not a /31 subnet")
-                    interfaces[device][interface].update({IPV4_KEY: f'{network[0]}/{network.prefixlen}'})
-                    interfaces[neighbor][neighbor_interface].update({IPV4_KEY: f'{network[1]}/{network.prefixlen}'})
+                    interfaces[device][interface].update(
+                        {IPV4_KEY: f"{network[0]}/{network.prefixlen}"}
+                    )
+                    interfaces[neighbor][neighbor_interface].update(
+                        {IPV4_KEY: f"{network[1]}/{network.prefixlen}"}
+                    )
                 if IPV6_SUBNET_KEY in link:
                     network = ipaddress.ip_network(link[IPV6_SUBNET_KEY])
                     if network.prefixlen != 127:
                         raise Exception(f"Subnet {network} is not a /127 subnet")
-                    interfaces[device][interface].update({IPV6_KEY: f'{network[0]}/{network.prefixlen}'})
-                    interfaces[neighbor][neighbor_interface].update({IPV6_KEY: f'{network[1]}/{network.prefixlen}'})
+                    interfaces[device][interface].update(
+                        {IPV6_KEY: f"{network[0]}/{network.prefixlen}"}
+                    )
+                    interfaces[neighbor][neighbor_interface].update(
+                        {IPV6_KEY: f"{network[1]}/{network.prefixlen}"}
+                    )
         return interfaces
 
     links = _parse_links(file)
@@ -148,8 +159,13 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
         def configure_interfaces(task: Task):
             config = ""
             for interface, params in links[task.host.name].items():
-                p = files(templates) / 'interfaces'
-                output = task.run(task=template_file, template='point-to-point.j2', path=p, interface={'name': interface, **params})
+                p = files(templates) / "interfaces"
+                output = task.run(
+                    task=template_file,
+                    template="point-to-point.j2",
+                    path=p,
+                    interface={"name": interface, **params},
+                )
                 config += output.result
                 bar.console.log(
                     f"{task.host}: Interface {interface} ({'IPv4' if IPV4_KEY in params else ''} {'IPv6' if IPV6_KEY in params else ''} {'ISIS' if ISIS_KEY in params else ''}): {params[DESCRIPTION_KEY]}"
@@ -159,11 +175,13 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
             bar.console.log(
                 f"{task.host}: Interfaces configured.{CONFIG_CHANGED if r.changed else ''}"
             )
+
         return nornir.run(task=configure_interfaces)
 
 
-def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: str) -> Result:
-
+def configure_peering(
+    nornir: nornir.core.Nornir, group: str, neighbor_group: str
+) -> Result:
     def _build_vars(asn: int):
         start_time = datetime.now() - timedelta(days=10)
         url = f"https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS{asn}&starttime={start_time.strftime('%Y-%m-%dT%H:%M')}"
@@ -173,10 +191,13 @@ def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: st
             for prefix in r.json()["data"]["prefixes"]:
                 prefixes.append(prefix["prefix"])
         else:
-            raise Exception(f'Could not get announced prefixes for AS{asn}')
+            raise Exception(f"Could not get announced prefixes for AS{asn}")
         networks = []
         for network in [ipaddress.ip_network(p) for p in prefixes]:
-            if not any((network != n and network.overlaps(n)) for n in [ipaddress.ip_network(p) for p in prefixes]):
+            if not any(
+                (network != n and network.overlaps(n))
+                for n in [ipaddress.ip_network(p) for p in prefixes]
+            ):
                 networks.append(network)
 
         hosts = []
@@ -185,46 +206,87 @@ def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: st
         prefixes_ipv6 = []
         for network in networks:
             if network.version == 4:
-                hosts.append(f'{next(network.hosts())}/{network.prefixlen}')
+                hosts.append(f"{next(network.hosts())}/{network.prefixlen}")
                 prefixes.append(str(network))
             elif network.version == 6:
-                hosts_ipv6.append(f'{next(network.hosts())}/{network.prefixlen}')
+                hosts_ipv6.append(f"{next(network.hosts())}/{network.prefixlen}")
                 prefixes_ipv6.append(str(network))
 
-        return {'hosts': hosts,
-                'hosts_ipv6': hosts_ipv6,
-                'prefixes': prefixes,
-                'prefixes_ipv6': prefixes_ipv6}
+        return {
+            "hosts": hosts,
+            "hosts_ipv6": hosts_ipv6,
+            "prefixes": prefixes,
+            "prefixes_ipv6": prefixes_ipv6,
+        }
 
     with Progress() as bar:
         task_id = bar.add_task(
-            "Configure peering devices", total=len(nornir.inventory.children_of_group(group))
+            "Configure peering devices",
+            total=len(nornir.inventory.children_of_group(group)),
         )
 
         def configure_peering(task: Task):
             MAX_LOOPBACKS = 2100
-            vars = _build_vars(task.host.data['asn'])
-            bar.console.log(f"{task.host}: Configuring {len(vars['prefixes'])} IPv4 prefixes for ISP {task.host.data['isp']}")
-            #bar.console.log(f"{task.host}: {vars['prefixes']}")
-            bar.console.log(f"{task.host}: Configuring {len(vars['prefixes_ipv6'])} IPv6 prefixes for ISP {task.host.data['isp']}")
-            #bar.console.log(f"{task.host}: {vars['prefixes_ipv6']}")
-            vars.update({'name': task.host.data['isp'],
-                         'asn': task.host.data['asn'],
-                         'description': task.host.data['description'],
-                         'as_path_length': task.host.data['as_path_length'],
-                         'max_loopback': MAX_LOOPBACKS,
-                         'neighbor_name': task.nornir.inventory.groups[neighbor_group].data['network_name'],
-                         'neighbor_ipv4': task.host.data['neighbor_ipv4'],
-                         'neighbor_ipv6': task.host.data['neighbor_ipv6'],
-                         'neighbor_as': task.nornir.inventory.groups[neighbor_group].data['asn']
-                         })
-            p = files(templates) / 'peering'
-            output = task.run(task=template_file, template='isp.j2', path=p, vars=vars)
-            r = task.run(task=napalm_configure, dry_run=False, configuration=output.result)
-            bar.console.log(f"{task.host}: Peering with {task.nornir.inventory.groups[neighbor_group].data['network_name']} configured.{CONFIG_CHANGED if r.changed else ''}")
+            vars = _build_vars(task.host.data["asn"])
+            bar.console.log(
+                f"{task.host}: Configuring {len(vars['prefixes'])} IPv4 prefixes for ISP {task.host.data['isp']}"
+            )
+            # bar.console.log(f"{task.host}: {vars['prefixes']}")
+            bar.console.log(
+                f"{task.host}: Configuring {len(vars['prefixes_ipv6'])} IPv6 prefixes for ISP {task.host.data['isp']}"
+            )
+            # bar.console.log(f"{task.host}: {vars['prefixes_ipv6']}")
+            vars.update(
+                {
+                    "name": task.host.data["isp"],
+                    "asn": task.host.data["asn"],
+                    "description": task.host.data["description"],
+                    "as_path_length": task.host.data["as_path_length"],
+                    "max_loopback": MAX_LOOPBACKS,
+                    "neighbor_name": task.nornir.inventory.groups[neighbor_group].data[
+                        "network_name"
+                    ],
+                    "neighbor_ipv4": task.host.data["neighbor_ipv4"],
+                    "neighbor_ipv6": task.host.data["neighbor_ipv6"],
+                    "neighbor_as": task.nornir.inventory.groups[neighbor_group].data[
+                        "asn"
+                    ],
+                }
+            )
+            p = files(templates) / "peering"
+            output = task.run(task=template_file, template="isp.j2", path=p, vars=vars)
+            r = task.run(
+                task=napalm_configure, dry_run=False, configuration=output.result
+            )
+            bar.console.log(
+                f"{task.host}: Peering with {task.nornir.inventory.groups[neighbor_group].data['network_name']} configured.{CONFIG_CHANGED if r.changed else ''}"
+            )
             bar.update(task_id, advance=1)
 
         return nornir.filter(F(groups__contains=group)).run(task=configure_peering)
+
+
+CLEAN_TERMINATTR = "no daemon TerminAttr"
+
+
+def onboard_cloudvision(nornir: nornir.core.Nornir) -> Result:
+    r = []
+    with Progress() as bar:
+        task_id = bar.add_task(
+            "Configure TerminAttr for CloudVision onboarding",
+            total=len(nornir.inventory.hosts),
+        )
+
+        def onboard_device(task: Task):
+            task.run(
+                task=napalm_configure, dry_run=False, configuration=CLEAN_TERMINATTR
+            )
+            bar.update(task_id, advance=1)
+
+        r.append(nornir.run(task=onboard_device))
+    p = files(templates) / "onboard"
+    r.append(apply_templates(nornir=nornir, folder=p))
+    return r
 
 
 ###################
