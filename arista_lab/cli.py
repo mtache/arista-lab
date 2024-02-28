@@ -132,7 +132,7 @@ def peering(obj: dict, group: str, backbone: str) -> List[Result]:
 
 def main() -> int:
     try:
-        sys.exit(cli())
+        sys.exit(cli(max_content_width=120))
     except Exception:
         console.print_exception(show_locals=True)
         sys.exit(1)
