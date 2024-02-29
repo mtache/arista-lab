@@ -57,7 +57,7 @@ def init_ceos_flash(nornir: nornir.core.Nornir, topology: dict, token: Path) -> 
             changed = copy_cv_token(task, device_flash)
             if docker.host_exists(task.host, topology):
                 bar.console.log(f"{task.host}: Container has already been created. Cannot init cEOS flash.")
-                return Result(host=task.host, failed=True)
+                return Result(host=task.host, changed=False)
             # System MAC
             changed = configure_system_mac(task, device_flash) or changed
             # Serial Number
