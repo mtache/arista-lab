@@ -14,8 +14,8 @@ from nornir.core.task import Task, Result
 from nornir.core.filter import F
 from rich.progress import Progress
 
-from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get  #type: ignore[import-untyped]
-from nornir_jinja2.plugins.tasks import template_file  #type: ignore[import-untyped]
+from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get  # type: ignore[import-untyped]
+from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
 
 CONFIG_CHANGED = " New configuration applied."
 MANAGEMENT_REGEX = (
@@ -253,7 +253,7 @@ def configure_peering(
                     ],
                 }
             )
-            
+
             p = files(templates) / "peering"
             output = task.run(task=template_file, template="isp.j2", path=p, vars=vars)
             r = task.run(
