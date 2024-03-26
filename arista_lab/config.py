@@ -19,7 +19,7 @@ from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-unt
 
 CONFIG_CHANGED = " New configuration applied."
 MANAGEMENT_REGEX = (
-    "interface Management[0-1]\n(.  ip address .*)?(\n   ipv6 address .*)?"
+    "interface Management[0-1](\n|[^!]*)+!"
 )
 
 #############
