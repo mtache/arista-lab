@@ -42,20 +42,10 @@ def _parse_topology(ctx: click.Context, param, value) -> dict:
     callback=_init_nornir,
     help="Nornir configuration in YAML format.",
 )
-@click.option(
-    "-t",
-    "--topology",
-    "topology",
-    default="topology.clab.yml",
-    type=click.File("r"),
-    callback=_parse_topology,
-    help="Containerlab topology file.",
-)
 @click.pass_context
-def cli(ctx, nornir: nornir.core.Nornir, topology: dict):
+def cli(ctx, nornir: nornir.core.Nornir):
     ctx.ensure_object(dict)
     ctx.obj["nornir"] = nornir
-    ctx.obj["topology"] = topology
 
 
 # Backup on flash
@@ -115,15 +105,33 @@ def load(obj: dict, folder: Path) -> List[Result]:
 
 
 @cli.command(help="Start containers")
+@click.option(
+    "-t",
+    "--topology",
+    "topology",
+    default="topology.clab.yml",
+    type=click.File("r"),
+    callback=_parse_topology,
+    help="Containerlab topology file.",
+)
 @click.pass_obj
-def start(obj: dict) -> Result:
-    return docker.start(obj["nornir"], obj["topology"])
+def start(obj: dict, topology: dict) -> Result:
+    return docker.start(obj["nornir"], topology)
 
 
 @cli.command(help="Stop containers")
+@click.option(
+    "-t",
+    "--topology",
+    "topology",
+    default="topology.clab.yml",
+    type=click.File("r"),
+    callback=_parse_topology,
+    help="Containerlab topology file.",
+)
 @click.pass_obj
-def stop(obj: dict) -> Result:
-    return docker.stop(obj["nornir"], obj["topology"])
+def stop(obj: dict, topology: dict) -> Result:
+    return docker.stop(obj["nornir"], topology)
 
 
 @cli.command(
@@ -137,8 +145,17 @@ def stop(obj: dict) -> Result:
     help="CloudVision onboarding token",
 )
 @click.pass_obj
-def init_ceos(obj: dict, token: Path) -> Result:
-    return ceos.init_ceos_flash(obj["nornir"], obj["topology"], token)
+@click.option(
+    "-t",
+    "--topology",
+    "topology",
+    default="topology.clab.yml",
+    type=click.File("r"),
+    callback=_parse_topology,
+    help="Containerlab topology file.",
+)
+def init_ceos(obj: dict, topology: dict, token: Path) -> Result:
+    return ceos.init_ceos_flash(obj["nornir"], topology, token)
 
 
 # Configuration
