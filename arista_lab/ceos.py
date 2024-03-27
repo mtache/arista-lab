@@ -4,11 +4,12 @@ import shutil
 from nornir.core.task import Task, Result
 from rich.progress import Progress
 from pathlib import Path
+from arista_lab.console import _print_failed_tasks
 
 from arista_lab import docker
 
 
-def init_ceos_flash(nornir: nornir.core.Nornir, topology: dict, token: Path) -> Result:
+def init_ceos_flash(nornir: nornir.core.Nornir, topology: dict, token: Path) -> None:
     with Progress() as bar:
 
         def configure_system_mac(task: Task, device_flash: Path) -> bool:
@@ -78,4 +79,6 @@ def init_ceos_flash(nornir: nornir.core.Nornir, topology: dict, token: Path) -> 
             bar.update(task_id, advance=1)
             return Result(host=task.host, changed=changed)
 
-        return nornir.run(task=init_ceos_flash)
+        results = nornir.run(task=init_ceos_flash)
+        if results.failed:
+            _print_failed_tasks(bar, results)

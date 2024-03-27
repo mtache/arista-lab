@@ -10,17 +10,16 @@ import ipaddress
 from typing import Any
 import requests
 import nornir
-from nornir.core.task import Task, Result
+from nornir.core.task import Task
 from nornir.core.filter import F
 from rich.progress import Progress
+from arista_lab.console import _print_failed_tasks
 
 from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get  # type: ignore[import-untyped]
 from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
 
 CONFIG_CHANGED = " New configuration applied."
-MANAGEMENT_REGEX = (
-    "interface Management[0-1](\n|[^!]*)+!"
-)
+MANAGEMENT_REGEX = "interface Management[0-1](\n|[^!]*)+!"
 
 #############
 # Templates #
@@ -36,7 +35,7 @@ def apply_templates(
     folder: Path,
     replace: bool = False,
     groups: bool = False,
-) -> Result:
+) -> None:
     if not folder.exists():
         raise Exception(f"Could not find template folder {folder}")
     templates = []
@@ -83,7 +82,9 @@ def apply_templates(
                 f"{task.host}: Templates configured.{CONFIG_CHANGED if r.changed else ''}"
             )
 
-        return nornir.run(task=apply_templates)
+        results = nornir.run(task=apply_templates)
+        if results.failed:
+            _print_failed_tasks(bar, results)
 
 
 #########
@@ -91,7 +92,7 @@ def apply_templates(
 #########
 
 
-def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
+def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> None:
     DESCRIPTION_KEY = "description"
     IPV4_KEY = "ipv4"
     IPV4_SUBNET_KEY = "ipv4_subnet"
@@ -176,12 +177,14 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> Result:
                 f"{task.host}: Interfaces configured.{CONFIG_CHANGED if r.changed else ''}"
             )
 
-        return nornir.run(task=configure_interfaces)
+        results = nornir.run(task=configure_interfaces)
+        if results.failed:
+            _print_failed_tasks(bar, results)
 
 
 def configure_peering(
     nornir: nornir.core.Nornir, group: str, neighbor_group: str
-) -> Result:
+) -> None:
     def _build_vars(asn: int):
         start_time = datetime.now() - timedelta(days=10)
         url = f"https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS{asn}&starttime={start_time.strftime('%Y-%m-%dT%H:%M')}"
@@ -264,14 +267,15 @@ def configure_peering(
             )
             bar.update(task_id, advance=1)
 
-        return nornir.filter(F(groups__contains=group)).run(task=configure_peering)
+        results = nornir.filter(F(groups__contains=group)).run(task=configure_peering)
+        if results.failed:
+            _print_failed_tasks(bar, results)
 
 
 CLEAN_TERMINATTR = "no daemon TerminAttr"
 
 
-def onboard_cloudvision(nornir: nornir.core.Nornir) -> list[Result]:
-    r = []
+def onboard_cloudvision(nornir: nornir.core.Nornir) -> None:
     with Progress() as bar:
         task_id = bar.add_task(
             "Configure TerminAttr for CloudVision onboarding",
@@ -284,11 +288,13 @@ def onboard_cloudvision(nornir: nornir.core.Nornir) -> list[Result]:
             )
             bar.update(task_id, advance=1)
 
-        r.append(nornir.run(task=onboard_device))
-    with as_file(files(templates)) as t:
-        p = t / "onboard"
-        r.append(apply_templates(nornir=nornir, folder=p))
-    return r
+        results = nornir.run(task=onboard_device)
+        if results.failed:
+            _print_failed_tasks(bar, results)
+
+        with as_file(files(templates)) as t:
+            p = t / "onboard"
+            apply_templates(nornir=nornir, folder=p)
 
 
 ###################
@@ -300,7 +306,7 @@ DIR_FLASH_CMD = "dir flash:"
 BACKUP_FILENAME = "rollback-config"
 
 
-def create_backups(nornir: nornir.core.Nornir) -> Result:
+def create_backups(nornir: nornir.core.Nornir) -> None:
     with Progress() as bar:
         task_id = bar.add_task(
             "Backup configuration to flash", total=len(nornir.inventory.hosts)
@@ -320,10 +326,12 @@ def create_backups(nornir: nornir.core.Nornir) -> Result:
             bar.console.log(f"{task.host}: Backup created.")
             bar.update(task_id, advance=1)
 
-        return nornir.run(task=create_backup)
+        results = nornir.run(task=create_backup)
+        if results.failed:
+            _print_failed_tasks(bar, results)
 
 
-def restore_backups(nornir: nornir.core.Nornir) -> Result:
+def restore_backups(nornir: nornir.core.Nornir) -> None:
     with Progress() as bar:
         task_id = bar.add_task(
             "Restore backup configuration from flash", total=len(nornir.inventory.hosts)
@@ -346,10 +354,12 @@ def restore_backups(nornir: nornir.core.Nornir) -> Result:
                     return
             raise Exception(f"{task.host}: Backup not found.")
 
-        return nornir.run(task=restore_backup)
+        results = nornir.run(task=restore_backup)
+        if results.failed:
+            _print_failed_tasks(bar, results)
 
 
-def delete_backups(nornir: nornir.core.Nornir) -> Result:
+def delete_backups(nornir: nornir.core.Nornir) -> None:
     with Progress() as bar:
         task_id = bar.add_task(
             "Delete backup on flash", total=len(nornir.inventory.hosts)
@@ -368,7 +378,9 @@ def delete_backups(nornir: nornir.core.Nornir) -> Result:
             bar.console.log(f"{task.host}: Backup not found.")
             bar.update(task_id, advance=1)
 
-        return nornir.run(task=delete_backup)
+        results = nornir.run(task=delete_backup)
+        if results.failed:
+            _print_failed_tasks(bar, results)
 
 
 ###############################
@@ -376,7 +388,7 @@ def delete_backups(nornir: nornir.core.Nornir) -> Result:
 ###############################
 
 
-def save(nornir: nornir.core.Nornir, folder: Path) -> Result:
+def save(nornir: nornir.core.Nornir, folder: Path) -> None:
     with Progress() as bar:
         task_id = bar.add_task(
             "Save lab configuration", total=len(nornir.inventory.hosts)
@@ -392,10 +404,12 @@ def save(nornir: nornir.core.Nornir, folder: Path) -> Result:
             bar.console.log(f"{task.host}: Configuration saved to {config}")
             bar.update(task_id, advance=1)
 
-        return nornir.run(task=save_config)
+        results = nornir.run(task=save_config)
+        if results.failed:
+            _print_failed_tasks(bar, results)
 
 
-def load(nornir: nornir.core.Nornir, folder: Path) -> Result:
+def load(nornir: nornir.core.Nornir, folder: Path) -> None:
     with Progress() as bar:
         task_id = bar.add_task(
             "Load lab configuration", total=len(nornir.inventory.hosts)
@@ -419,4 +433,6 @@ def load(nornir: nornir.core.Nornir, folder: Path) -> Result:
             bar.console.log(f"{task.host}: Configuration loaded.")
             bar.update(task_id, advance=1)
 
-        return nornir.run(task=load_config)
+        results = nornir.run(task=load_config)
+        if results.failed:
+            _print_failed_tasks(bar, results)

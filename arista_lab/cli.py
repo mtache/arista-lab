@@ -3,10 +3,8 @@ import click
 import yaml
 import sys
 
-from nornir.core.task import Result
 from rich.console import Console
 from pathlib import Path
-from typing import List
 from nornir.core.filter import F
 
 from arista_lab import config, ceos, docker
@@ -16,7 +14,7 @@ console = Console()
 
 def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
     try:
-        return nornir.InitNornir(config_file=value)
+        return nornir.InitNornir(config_file=value, core={"raise_on_error": False})
     except Exception as exc:
         ctx.fail(f"Unable to initialize Nornir with config file '{value}': {str(exc)}")
 
@@ -43,7 +41,7 @@ def _parse_topology(ctx: click.Context, param, value) -> dict:
     help="Nornir configuration in YAML format.",
 )
 @click.pass_context
-def cli(ctx, nornir: nornir.core.Nornir):
+def cli(ctx, nornir: nornir.core.Nornir) -> None:
     ctx.ensure_object(dict)
     ctx.obj["nornir"] = nornir
 
@@ -56,17 +54,17 @@ def cli(ctx, nornir: nornir.core.Nornir):
 @click.option(
     "--delete/--no-delete", default=False, help="Delete the backup on the device flash"
 )
-def backup(obj: dict, delete: bool) -> Result:
+def backup(obj: dict, delete: bool) -> None:
     if delete:
-        return config.delete_backups(obj["nornir"])
+        config.delete_backups(obj["nornir"])
     else:
-        return config.create_backups(obj["nornir"])
+        config.create_backups(obj["nornir"])
 
 
 @cli.command(help="Restore configuration backups from flash")
 @click.pass_obj
-def restore(obj: dict) -> Result:
-    return config.restore_backups(obj["nornir"])
+def restore(obj: dict) -> None:
+    config.restore_backups(obj["nornir"])
 
 
 # Backup locally
@@ -81,8 +79,8 @@ def restore(obj: dict) -> Result:
     required=True,
     help="Configuration backup folder",
 )
-def save(obj: dict, folder: Path) -> Result:
-    return config.save(obj["nornir"], folder)
+def save(obj: dict, folder: Path) -> None:
+    config.save(obj["nornir"], folder)
 
 
 @cli.command(help="Load configuration from a folder")
@@ -94,11 +92,9 @@ def save(obj: dict, folder: Path) -> Result:
     required=True,
     help="Configuration backup folder",
 )
-def load(obj: dict, folder: Path) -> List[Result]:
-    r = []
-    r.append(config.create_backups(obj["nornir"]))
-    r.append(config.load(obj["nornir"], folder))
-    return r
+def load(obj: dict, folder: Path) -> None:
+    config.create_backups(obj["nornir"])
+    config.load(obj["nornir"], folder)
 
 
 # Containerlab
@@ -115,8 +111,8 @@ def load(obj: dict, folder: Path) -> List[Result]:
     help="Containerlab topology file.",
 )
 @click.pass_obj
-def start(obj: dict, topology: dict) -> Result:
-    return docker.start(obj["nornir"], topology)
+def start(obj: dict, topology: dict) -> None:
+    docker.start(obj["nornir"], topology)
 
 
 @cli.command(help="Stop containers")
@@ -130,8 +126,8 @@ def start(obj: dict, topology: dict) -> Result:
     help="Containerlab topology file.",
 )
 @click.pass_obj
-def stop(obj: dict, topology: dict) -> Result:
-    return docker.stop(obj["nornir"], topology)
+def stop(obj: dict, topology: dict) -> None:
+    docker.stop(obj["nornir"], topology)
 
 
 @cli.command(
@@ -154,8 +150,8 @@ def stop(obj: dict, topology: dict) -> Result:
     callback=_parse_topology,
     help="Containerlab topology file.",
 )
-def init_ceos(obj: dict, topology: dict, token: Path) -> Result:
-    return ceos.init_ceos_flash(obj["nornir"], topology, token)
+def init_ceos(obj: dict, topology: dict, token: Path) -> None:
+    ceos.init_ceos_flash(obj["nornir"], topology, token)
 
 
 # Configuration
@@ -165,11 +161,9 @@ def init_ceos(obj: dict, topology: dict, token: Path) -> Result:
     help="Onboard to CloudVision (N.B: TerminAttr uses default VRF and CVaaS cv-staging cluster)"
 )
 @click.pass_obj
-def onboard(obj: dict) -> List[Result]:
-    r = []
-    r.append(config.create_backups(obj["nornir"]))
-    r.extend(config.onboard_cloudvision(obj["nornir"]))
-    return r
+def onboard(obj: dict) -> None:
+    config.create_backups(obj["nornir"])
+    config.onboard_cloudvision(obj["nornir"])
 
 
 @cli.command(help="Apply configuration templates")
@@ -186,11 +180,9 @@ def onboard(obj: dict) -> List[Result]:
     default=False,
     help="The template folder contains subfolders with Nornir group names",
 )
-def apply(obj: dict, folder: Path, groups: bool) -> List[Result]:
-    r = []
-    r.append(config.create_backups(obj["nornir"]))
-    r.append(config.apply_templates(obj["nornir"], folder, groups=groups))
-    return r
+def apply(obj: dict, folder: Path, groups: bool) -> None:
+    config.create_backups(obj["nornir"])
+    config.apply_templates(obj["nornir"], folder, groups=groups)
 
 
 @cli.command(help="Configure point-to-point interfaces")
@@ -202,11 +194,9 @@ def apply(obj: dict, folder: Path, groups: bool) -> List[Result]:
     required=True,
     help="YAML File describing lab links",
 )
-def interfaces(obj: dict, links: Path) -> List[Result]:
-    r = []
-    r.append(config.create_backups(obj["nornir"]))
-    r.append(config.configure_interfaces(obj["nornir"], links))
-    return r
+def interfaces(obj: dict, links: Path) -> None:
+    config.create_backups(obj["nornir"])
+    config.configure_interfaces(obj["nornir"], links)
 
 
 @cli.command(help="Configure peering devices")
@@ -221,16 +211,14 @@ def interfaces(obj: dict, links: Path) -> List[Result]:
     required=True,
     help="Nornir group of the backbone",
 )
-def peering(obj: dict, group: str, backbone: str) -> List[Result]:
-    r = []
-    r.append(config.create_backups(obj["nornir"].filter(F(groups__contains=group))))
-    r.append(config.configure_peering(obj["nornir"], group, backbone))
-    return r
+def peering(obj: dict, group: str, backbone: str) -> None:
+    config.create_backups(obj["nornir"].filter(F(groups__contains=group)))
+    config.configure_peering(obj["nornir"], group, backbone)
 
 
-def main() -> int:
+def main() -> None:
     try:
         sys.exit(cli(max_content_width=120))
     except Exception:
-        console.print_exception(show_locals=True)
+        console.print_exception()
         sys.exit(1)
