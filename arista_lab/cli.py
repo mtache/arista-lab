@@ -157,15 +157,6 @@ def init_ceos(obj: dict, topology: dict, token: Path) -> None:
 # Configuration
 
 
-@cli.command(
-    help="Onboard to CloudVision (N.B: TerminAttr uses default VRF and CVaaS cv-staging cluster)"
-)
-@click.pass_obj
-def onboard(obj: dict) -> None:
-    config.create_backups(obj["nornir"])
-    config.onboard_cloudvision(obj["nornir"])
-
-
 @cli.command(help="Apply configuration templates")
 @click.pass_obj
 @click.option(

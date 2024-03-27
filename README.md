@@ -17,7 +17,6 @@ Commands:
   init-ceos   Configure cEOS serial number, system MAC address and copy CloudVision token to flash
   interfaces  Configure point-to-point interfaces
   load        Load configuration from a folder
-  onboard     Onboard to CloudVision (N.B: TerminAttr uses default VRF and CVaaS cv-staging cluster)
   peering     Configure peering devices
   restore     Restore configuration backups from flash
   save        Save configuration to a folder
@@ -27,18 +26,25 @@ Commands:
 
 ## Installation
 
-Requires poetry to build the wheel.
-You can use the make target `make all` that uses poetry to build the package with `poetry build` and installs the package with `pip`.
+```
+pip install arista-lab
+```
 
 ## Usage
 
 ### How to backup lab configuration ?
 
 The command `lab backup` will backup all device running-configuration to flash. You can restore it anytime with `lab restore`.
-The command `lab load --folder configs/lsl3-fabric` will load a L3LS fabric configuration initially generated with CloudVision Studios.
-Some commands like `lab load` or `lab onboard` will automatically save configuration to flash, respectively before and after running the command.
+Some commands like `lab load` or `lab apply` will automatically save configuration to flash before running the command.
 
 > Once the backup configuration is present in flash, it won't be overriden unless you run `lab backup --delete`
+
+### How to save lab configuration to a local folder ?
+
+The command `lab loads --folder configs` will save the configuration of all lab devices to the `configs` folder.
+The command `lab load --folder configs` will **merge** the device configurations in the folder with the running configurations.
+
+> The `Management` interface configuration is always removed from the configuration files being loaded.
 
 ### How to configure the serial number and system MAC ?
 
@@ -49,7 +55,7 @@ lab init-ceos
 containerlab deploy
 ```
 
-### How to onboard the lab to CloudVision ?
+### How to correctly re-onboard a lab with cEOS nodes to CloudVision ?
 
 You can destroy a lab and re-onboard it in Cloudvision but you will need to configure the same correct serial number and system MAC address for each node so CloudVision will recognize the devices as already provisioned.
 
@@ -59,7 +65,7 @@ lab init-ceos --token cv-onboarding-token
 containerlab deploy
 ```
 
-> Ensure that a correct TerminAttr configuration is part of the startup config, or you can use the `lab onboard` command.
+> Ensure that a correct TerminAttr configuration is part of the startup config, or you can use the `lab load` command.
 
 Then go to your CloudVision instance, `Devices -> Device Registration -> Device Onboarding -> Onboard Provisioned EOS Devices` to re-onboard the devices by provisioning the certificates.
 
