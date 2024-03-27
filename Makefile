@@ -1,13 +1,9 @@
-TESTING_WHEEL = arista_lab-0.1.0-py3-none-any.whl
-
-all: build install
+all: build publish
 
 build:
 	poetry update
 	poetry build
+	poetry install
 
-uninstall:
-	pip3 uninstall arista-lab -y
-
-install: uninstall
-	pip3 install dist/$(TESTING_WHEEL)
+publish:
+	poetry publish
