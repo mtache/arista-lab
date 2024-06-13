@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "arista-lab"
-version = "0.1.1"
+version = "0.1.2"
 description = "Simple tooling when working with EOS in labs"
 authors = ["Matthieu Tache <mtache@arista.com>"]
 
@@ -9,14 +9,14 @@ lab = 'arista_lab.cli:main'
 
 [tool.poetry.dependencies]
 python = "~3.11"
-nornir = "^3.4"
+nornir = "~3.4"
 click = "^8.1"
 PyYAML = "^6"
 rich = "^13"
-nornir-napalm = "^0.4"
+nornir-napalm = "^0.5"
 nornir-jinja2 = "^0.2"
 docker = "^7"
-requests = "^2.31"
+requests = "^2.32"
 openpyxl = "^3.1.2"
 
 [tool.poetry.dev-dependencies]
