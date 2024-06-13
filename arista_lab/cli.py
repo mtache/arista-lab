@@ -15,6 +15,7 @@ from arista_lab import config, ceos, docker
 
 console = Console()
 
+
 class Log(str, Enum):
     """Represent log levels from logging module as immutable strings."""
 
@@ -24,7 +25,9 @@ class Log(str, Enum):
     INFO = logging.getLevelName(logging.INFO)
     DEBUG = logging.getLevelName(logging.DEBUG)
 
+
 LogLevel = Literal[Log.CRITICAL, Log.ERROR, Log.WARNING, Log.INFO, Log.DEBUG]
+
 
 def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
     """Configure logging for Python.
@@ -49,16 +52,24 @@ def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
         # asyncssh is really chatty
         logging.getLogger("pyeapi").setLevel(logging.CRITICAL)
     # Add RichHandler for stdout
-    rich_handler = RichHandler(markup=True, rich_tracebacks=True, tracebacks_show_locals=False)
+    rich_handler = RichHandler(
+        markup=True, rich_tracebacks=True, tracebacks_show_locals=False
+    )
     # Show Python module in stdout at DEBUG level
-    fmt_string = "[grey58]\\[%(name)s][/grey58] %(message)s" if loglevel == logging.DEBUG else "%(message)s"
+    fmt_string = (
+        "[grey58]\\[%(name)s][/grey58] %(message)s"
+        if loglevel == logging.DEBUG
+        else "%(message)s"
+    )
     formatter = logging.Formatter(fmt=fmt_string, datefmt="[%X]")
     rich_handler.setFormatter(formatter)
     root.addHandler(rich_handler)
     # Add FileHandler if file is provided
     if file:
         file_handler = logging.FileHandler(file)
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         file_handler.setFormatter(formatter)
         root.addHandler(file_handler)
         # If level is DEBUG and file is provided, do not send DEBUG level to stdout
@@ -79,7 +90,9 @@ def _parse_topology(ctx: click.Context, param, value) -> dict:
         t.update({"_topology_path": value.name})
         return t
     except Exception as exc:
-        ctx.fail(f"Unable to read Containerlab topology file '{value.name}': {str(exc)}")
+        ctx.fail(
+            f"Unable to read Containerlab topology file '{value.name}': {str(exc)}"
+        )
 
 
 @click.group()
@@ -122,7 +135,9 @@ def cli(ctx, nornir: nornir.core.Nornir, log_level: LogLevel, log_file: Path) ->
 
 @cli.command(help="Create or delete device configuration backups to flash")
 @click.pass_obj
-@click.option("--delete/--no-delete", default=False, help="Delete the backup on the device flash")
+@click.option(
+    "--delete/--no-delete", default=False, help="Delete the backup on the device flash"
+)
 def backup(obj: dict, delete: bool) -> None:
     if delete:
         config.delete_backups(obj["nornir"])
@@ -199,7 +214,9 @@ def stop(obj: dict, topology: dict) -> None:
     docker.stop(obj["nornir"], topology)
 
 
-@cli.command(help="Configure cEOS serial number, system MAC address and copy CloudVision token to flash")
+@cli.command(
+    help="Configure cEOS serial number, system MAC address and copy CloudVision token to flash"
+)
 @click.option(
     "--token",
     "token",
@@ -259,7 +276,9 @@ def interfaces(obj: dict, links: Path) -> None:
 
 @cli.command(help="Configure peering devices")
 @click.pass_obj
-@click.option("--group", "group", type=str, required=True, help="Nornir group of peering devices")
+@click.option(
+    "--group", "group", type=str, required=True, help="Nornir group of peering devices"
+)
 @click.option(
     "--backbone",
     "backbone",
