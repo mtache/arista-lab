@@ -19,16 +19,10 @@ from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get
 from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
 
 CONFIG_CHANGED = " New configuration applied."
-MANAGEMENT_REGEX = "interface Management[0-1](\n|[^!]*)+!"
 
 #############
 # Templates #
 #############
-
-
-def _purge_management_config(config):
-    return re.sub(MANAGEMENT_REGEX, "", config)
-
 
 def apply_templates(
     nornir: nornir.core.Nornir,
@@ -56,9 +50,7 @@ def apply_templates(
         def apply_templates(task: Task):
             config = ""
             for t in templates:
-                if groups and not (
-                    (group := t[2]) is None or group in task.host.groups
-                ):
+                if groups and not ((group := t[2]) is None or group in task.host.groups):
                     # Only apply templates specific to a group or templates with no group
                     bar.update(task_id, advance=1)
                     continue
@@ -67,6 +59,7 @@ def apply_templates(
                     template=(template := t[1]),
                     path=t[0],
                     hosts=nornir.inventory.hosts,
+                    groups=nornir.inventory.groups,
                 )
                 config += output.result
                 bar.console.log(f"{task.host}: {template}")
@@ -76,11 +69,9 @@ def apply_templates(
                 task=napalm_configure,
                 dry_run=False,
                 replace=replace,
-                configuration=_purge_management_config(config),
+                configuration=config
             )
-            bar.console.log(
-                f"{task.host}: Templates configured.{CONFIG_CHANGED if r.changed else ''}"
-            )
+            bar.console.log(f"{task.host}: Templates configured.{CONFIG_CHANGED if r.changed else ''}")
 
         results = nornir.run(task=apply_templates)
         if results.failed:
@@ -106,9 +97,7 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> None:
             links = safe_load(f)["links"]
             for link in links:
                 if len(link["endpoints"]) != 2:
-                    raise Exception(
-                        f"Cannot parse '{file}': entry with 'endpoints' key must have a value in the format '['device1:etN', 'device2:etN']'"
-                    )
+                    raise Exception(f"Cannot parse '{file}': entry with 'endpoints' key must have a value in the format '['device1:etN', 'device2:etN']'")
                 # for device_id, neighbor_id in (range(2), range(1,-1,-1)):
                 device = link["endpoints"][0].split(":")[0]
                 neighbor = link["endpoints"][1].split(":")[0]
@@ -118,44 +107,28 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> None:
                     interfaces[device] = {}
                 if neighbor not in interfaces:
                     interfaces[neighbor] = {}
-                interfaces[device][interface] = {
-                    DESCRIPTION_KEY: f"to {neighbor} {neighbor_interface}"
-                }
-                interfaces[neighbor][neighbor_interface] = {
-                    DESCRIPTION_KEY: f"to {device} {interface}"
-                }
+                interfaces[device][interface] = {DESCRIPTION_KEY: f"to {neighbor} {neighbor_interface}"}
+                interfaces[neighbor][neighbor_interface] = {DESCRIPTION_KEY: f"to {device} {interface}"}
                 if ISIS_KEY in link:
                     interfaces[device][interface].update({ISIS_KEY: link[ISIS_KEY]})
-                    interfaces[neighbor][neighbor_interface].update(
-                        {ISIS_KEY: link[ISIS_KEY]}
-                    )
+                    interfaces[neighbor][neighbor_interface].update({ISIS_KEY: link[ISIS_KEY]})
                 if IPV4_SUBNET_KEY in link:
                     network = ipaddress.ip_network(link[IPV4_SUBNET_KEY])
                     if network.prefixlen != 31:
                         raise Exception(f"Subnet {network} is not a /31 subnet")
-                    interfaces[device][interface].update(
-                        {IPV4_KEY: f"{network[0]}/{network.prefixlen}"}
-                    )
-                    interfaces[neighbor][neighbor_interface].update(
-                        {IPV4_KEY: f"{network[1]}/{network.prefixlen}"}
-                    )
+                    interfaces[device][interface].update({IPV4_KEY: f"{network[0]}/{network.prefixlen}"})
+                    interfaces[neighbor][neighbor_interface].update({IPV4_KEY: f"{network[1]}/{network.prefixlen}"})
                 if IPV6_SUBNET_KEY in link:
                     network = ipaddress.ip_network(link[IPV6_SUBNET_KEY])
                     if network.prefixlen != 127:
                         raise Exception(f"Subnet {network} is not a /127 subnet")
-                    interfaces[device][interface].update(
-                        {IPV6_KEY: f"{network[0]}/{network.prefixlen}"}
-                    )
-                    interfaces[neighbor][neighbor_interface].update(
-                        {IPV6_KEY: f"{network[1]}/{network.prefixlen}"}
-                    )
+                    interfaces[device][interface].update({IPV6_KEY: f"{network[0]}/{network.prefixlen}"})
+                    interfaces[neighbor][neighbor_interface].update({IPV6_KEY: f"{network[1]}/{network.prefixlen}"})
         return interfaces
 
     links = _parse_links(file)
     with Progress() as bar:
-        task_id = bar.add_task(
-            "Configure point-to-point interfaces", total=len(nornir.inventory.hosts)
-        )
+        task_id = bar.add_task("Configure point-to-point interfaces", total=len(nornir.inventory.hosts))
 
         def configure_interfaces(task: Task):
             config = ""
@@ -173,18 +146,14 @@ def configure_interfaces(nornir: nornir.core.Nornir, file: Path) -> None:
                 )
                 bar.update(task_id, advance=1)
             r = task.run(task=napalm_configure, dry_run=False, configuration=config)
-            bar.console.log(
-                f"{task.host}: Interfaces configured.{CONFIG_CHANGED if r.changed else ''}"
-            )
+            bar.console.log(f"{task.host}: Interfaces configured.{CONFIG_CHANGED if r.changed else ''}")
 
         results = nornir.run(task=configure_interfaces)
         if results.failed:
             _print_failed_tasks(bar, results)
 
 
-def configure_peering(
-    nornir: nornir.core.Nornir, group: str, neighbor_group: str
-) -> None:
+def configure_peering(nornir: nornir.core.Nornir, group: str, neighbor_group: str) -> None:
     def _build_vars(asn: int):
         start_time = datetime.now() - timedelta(days=10)
         url = f"https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS{asn}&starttime={start_time.strftime('%Y-%m-%dT%H:%M')}"
@@ -197,10 +166,7 @@ def configure_peering(
             raise Exception(f"Could not get announced prefixes for AS{asn}")
         networks = []
         for network in [ipaddress.ip_network(p) for p in prefixes]:
-            if not any(
-                (network != n and network.overlaps(n))
-                for n in [ipaddress.ip_network(p) for p in prefixes]
-            ):
+            if not any((network != n and network.overlaps(n)) for n in [ipaddress.ip_network(p) for p in prefixes]):
                 networks.append(network)
 
         hosts = []
@@ -231,13 +197,9 @@ def configure_peering(
         def configure_peering(task: Task):
             MAX_LOOPBACKS = 2100
             vars = _build_vars(task.host.data["asn"])
-            bar.console.log(
-                f"{task.host}: Configuring {len(vars['prefixes'])} IPv4 prefixes for ISP {task.host.data['isp']}"
-            )
+            bar.console.log(f"{task.host}: Configuring {len(vars['prefixes'])} IPv4 prefixes for ISP {task.host.data['isp']}")
             # bar.console.log(f"{task.host}: {vars['prefixes']}")
-            bar.console.log(
-                f"{task.host}: Configuring {len(vars['prefixes_ipv6'])} IPv6 prefixes for ISP {task.host.data['isp']}"
-            )
+            bar.console.log(f"{task.host}: Configuring {len(vars['prefixes_ipv6'])} IPv6 prefixes for ISP {task.host.data['isp']}")
             # bar.console.log(f"{task.host}: {vars['prefixes_ipv6']}")
             vars.update(
                 {
@@ -246,22 +208,16 @@ def configure_peering(
                     "description": task.host.data["description"],
                     "as_path_length": task.host.data["as_path_length"],
                     "max_loopback": MAX_LOOPBACKS,
-                    "neighbor_name": task.nornir.inventory.groups[neighbor_group].data[
-                        "network_name"
-                    ],
+                    "neighbor_name": task.nornir.inventory.groups[neighbor_group].data["network_name"],
                     "neighbor_ipv4": task.host.data["neighbor_ipv4"],
                     "neighbor_ipv6": task.host.data["neighbor_ipv6"],
-                    "neighbor_as": task.nornir.inventory.groups[neighbor_group].data[
-                        "asn"
-                    ],
+                    "neighbor_as": task.nornir.inventory.groups[neighbor_group].data["asn"],
                 }
             )
 
             p = files(templates) / "peering"
             output = task.run(task=template_file, template="isp.j2", path=p, vars=vars)
-            r = task.run(
-                task=napalm_configure, dry_run=False, configuration=output.result
-            )
+            r = task.run(task=napalm_configure, dry_run=False, configuration=output.result)
             bar.console.log(
                 f"{task.host}: Peering with {task.nornir.inventory.groups[neighbor_group].data['network_name']} configured.{CONFIG_CHANGED if r.changed else ''}"
             )
@@ -283,9 +239,7 @@ def onboard_cloudvision(nornir: nornir.core.Nornir) -> None:
         )
 
         def onboard_device(task: Task):
-            task.run(
-                task=napalm_configure, dry_run=False, configuration=CLEAN_TERMINATTR
-            )
+            task.run(task=napalm_configure, dry_run=False, configuration=CLEAN_TERMINATTR)
             bar.update(task_id, advance=1)
 
         results = nornir.run(task=onboard_device)
@@ -308,9 +262,7 @@ BACKUP_FILENAME = "rollback-config"
 
 def create_backups(nornir: nornir.core.Nornir) -> None:
     with Progress() as bar:
-        task_id = bar.add_task(
-            "Backup configuration to flash", total=len(nornir.inventory.hosts)
-        )
+        task_id = bar.add_task("Backup configuration to flash", total=len(nornir.inventory.hosts))
 
         def create_backup(task: Task):
             r = task.run(task=napalm_cli, commands=[DIR_FLASH_CMD])
@@ -333,9 +285,7 @@ def create_backups(nornir: nornir.core.Nornir) -> None:
 
 def restore_backups(nornir: nornir.core.Nornir) -> None:
     with Progress() as bar:
-        task_id = bar.add_task(
-            "Restore backup configuration from flash", total=len(nornir.inventory.hosts)
-        )
+        task_id = bar.add_task("Restore backup configuration from flash", total=len(nornir.inventory.hosts))
 
         def restore_backup(task: Task):
             r = task.run(task=napalm_cli, commands=[DIR_FLASH_CMD])
@@ -361,17 +311,13 @@ def restore_backups(nornir: nornir.core.Nornir) -> None:
 
 def delete_backups(nornir: nornir.core.Nornir) -> None:
     with Progress() as bar:
-        task_id = bar.add_task(
-            "Delete backup on flash", total=len(nornir.inventory.hosts)
-        )
+        task_id = bar.add_task("Delete backup on flash", total=len(nornir.inventory.hosts))
 
         def delete_backup(task: Task):
             r = task.run(task=napalm_cli, commands=[DIR_FLASH_CMD])
             for res in r:
                 if BACKUP_FILENAME in res.result[DIR_FLASH_CMD]:
-                    task.run(
-                        task=napalm_cli, commands=[f"delete flash:{BACKUP_FILENAME}"]
-                    )
+                    task.run(task=napalm_cli, commands=[f"delete flash:{BACKUP_FILENAME}"])
                     bar.console.log(f"{task.host}: Backup deleted.")
                     bar.update(task_id, advance=1)
                     return
@@ -390,9 +336,7 @@ def delete_backups(nornir: nornir.core.Nornir) -> None:
 
 def save(nornir: nornir.core.Nornir, folder: Path) -> None:
     with Progress() as bar:
-        task_id = bar.add_task(
-            "Save lab configuration", total=len(nornir.inventory.hosts)
-        )
+        task_id = bar.add_task("Save lab configuration", total=len(nornir.inventory.hosts))
 
         def save_config(task: Task):
             task.run(task=napalm_cli, commands=["copy running-config startup-config"])
@@ -411,24 +355,18 @@ def save(nornir: nornir.core.Nornir, folder: Path) -> None:
 
 def load(nornir: nornir.core.Nornir, folder: Path) -> None:
     with Progress() as bar:
-        task_id = bar.add_task(
-            "Load lab configuration", total=len(nornir.inventory.hosts)
-        )
+        task_id = bar.add_task("Load lab configuration", total=len(nornir.inventory.hosts))
 
         def load_config(task: Task):
             config = folder / f"{task.host}.cfg"
             if not config.exists():
-                raise Exception(
-                    f"Configuration of {task.host} not found in folder {folder}"
-                )
-            output = task.run(
-                task=template_file, template=f"{task.host}.cfg", path=folder
-            )
+                raise Exception(f"Configuration of {task.host} not found in folder {folder}")
+            output = task.run(task=template_file, template=f"{task.host}.cfg", path=folder)
             task.run(
                 task=napalm_configure,
                 dry_run=False,
                 replace=False,
-                configuration=_purge_management_config(output.result),
+                configuration=output.result,
             )
             bar.console.log(f"{task.host}: Configuration loaded.")
             bar.update(task_id, advance=1)
