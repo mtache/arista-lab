@@ -48,7 +48,6 @@ def apply_templates(
         )
 
         def apply_templates(task: Task):
-            config = ""
             for t in templates:
                 if groups and not (
                     (group := t[2]) is None or group in task.host.groups
@@ -63,19 +62,15 @@ def apply_templates(
                     hosts=nornir.inventory.hosts,
                     groups=nornir.inventory.groups,
                 )
-                config += output.result
-                bar.console.log(f"{task.host}: {template}")
                 bar.update(task_id, advance=1)
-                config += "\n"
-            r = task.run(
-                task=napalm_configure,
-                dry_run=False,
-                replace=replace,
-                configuration=config,
-            )
-            bar.console.log(
-                f"{task.host}: Templates configured.{CONFIG_CHANGED if r.changed else ''}"
-            )
+                r = task.run(
+                    task=napalm_configure,
+                    dry_run=False,
+                    replace=replace,
+                    configuration=output.result,
+                )
+                if r.changed:
+                    bar.console.log(f"{task.host}: {template}\n{r.diff}")
 
         results = nornir.run(task=apply_templates)
         if results.failed:
