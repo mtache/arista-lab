@@ -1,9 +1,3 @@
-all: build publish
-
-build:
+all:
 	poetry update
-	poetry build
-	poetry install
-
-publish:
-	poetry publish
+	poetry publish --build --skip-existing
