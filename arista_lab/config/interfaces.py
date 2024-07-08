@@ -10,10 +10,8 @@ from nornir.core.task import Task
 from rich.progress import Progress
 from arista_lab.console import _print_failed_tasks
 
-from nornir_napalm.plugins.tasks import napalm_configure  # type: ignore[import-untyped]
+from nornir_napalm.plugins.tasks import napalm_configure, napalm_confirm_commit  # type: ignore[import-untyped]
 from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
-
-from arista_lab.config import CONFIG_CHANGED
 
 
 def configure(nornir: nornir.core.Nornir, file: Path) -> None:
@@ -97,11 +95,11 @@ def configure(nornir: nornir.core.Nornir, file: Path) -> None:
                 )
                 bar.update(task_id, advance=1)
             r = task.run(
-                task=napalm_configure, dry_run=False, configuration=config, revert_in=5
+                task=napalm_configure, dry_run=False, configuration=config, revert_in=30
             )
-            bar.console.log(
-                f"{task.host}: Interfaces configured.{CONFIG_CHANGED if r.changed else ''}"
-            )
+            r = task.run(task=napalm_confirm_commit)
+            bar.console.log(f"{task.host}: {r.result}")
+
 
         results = nornir.run(task=configure_interfaces)
         if results.failed:

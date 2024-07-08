@@ -6,10 +6,8 @@ from nornir.core.task import Task
 from rich.progress import Progress
 from arista_lab.console import _print_failed_tasks
 
-from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get  # type: ignore[import-untyped]
+from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get, napalm_confirm_commit  # type: ignore[import-untyped]
 from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
-
-CONFIG_CHANGED = " New configuration applied."
 
 #############
 # Templates #
@@ -54,16 +52,19 @@ def apply_templates(
                     hosts=nornir.inventory.hosts,
                     groups=nornir.inventory.groups,
                 )
-                bar.update(task_id, advance=1)
                 r = task.run(
                     task=napalm_configure,
                     dry_run=False,
                     replace=replace,
                     configuration=output.result,
-                    revert_in=5,
+                    revert_in=30,
                 )
                 if r.changed:
                     bar.console.log(f"{task.host}: {template}\n{r.diff}")
+                r = task.run(task=napalm_confirm_commit)
+                bar.console.log(f"{task.host}: {template}: {r.result}")
+                bar.update(task_id, advance=1)
+
 
         results = nornir.run(task=apply_templates)
         if results.failed:
@@ -202,9 +203,10 @@ def load(nornir: nornir.core.Nornir, folder: Path, replace: bool = False) -> Non
                 dry_run=False,
                 replace=replace,
                 configuration=output.result,
-                revert_in=5,
+                revert_in=30,
             )
-            bar.console.log(f"{task.host}: Configuration loaded.")
+            r = task.run(task=napalm_confirm_commit)
+            bar.console.log(f"{task.host}: {r.result}")
             bar.update(task_id, advance=1)
 
         results = nornir.run(task=load_config)
