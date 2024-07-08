@@ -12,6 +12,8 @@ from nornir.core.filter import F
 from rich.logging import RichHandler
 
 from arista_lab import config, ceos, docker
+import arista_lab.config.interfaces
+import arista_lab.config.peering
 
 console = Console()
 
@@ -103,6 +105,7 @@ def _parse_topology(ctx: click.Context, param, value) -> dict:
     default="nornir.yaml",
     type=click.Path(exists=True),
     callback=_init_nornir,
+    show_default=True,
     help="Nornir configuration in YAML format.",
 )
 @click.option(
@@ -136,7 +139,10 @@ def cli(ctx, nornir: nornir.core.Nornir, log_level: LogLevel, log_file: Path) ->
 @cli.command(help="Create or delete device configuration backups to flash")
 @click.pass_obj
 @click.option(
-    "--delete/--no-delete", default=False, help="Delete the backup on the device flash"
+    "--delete/--no-delete",
+    default=False,
+    help="Delete the backup on the device flash",
+    show_default=True,
 )
 def backup(obj: dict, delete: bool) -> None:
     if delete:
@@ -176,9 +182,15 @@ def save(obj: dict, folder: Path) -> None:
     required=True,
     help="Configuration backup folder",
 )
-def load(obj: dict, folder: Path) -> None:
+@click.option(
+    "--replace/--merge",
+    default=False,
+    show_default=True,
+    help="Replace or merge the configuration on the device",
+)
+def load(obj: dict, folder: Path, replace: bool) -> None:
     config.create_backups(obj["nornir"])
-    config.load(obj["nornir"], folder)
+    config.load(obj["nornir"], folder, replace=replace)
 
 
 # Containerlab
@@ -192,6 +204,7 @@ def load(obj: dict, folder: Path) -> None:
     default="topology.clab.yml",
     type=click.File("r"),
     callback=_parse_topology,
+    show_default=True,
     help="Containerlab topology file.",
 )
 @click.pass_obj
@@ -207,6 +220,7 @@ def start(obj: dict, topology: dict) -> None:
     default="topology.clab.yml",
     type=click.File("r"),
     callback=_parse_topology,
+    show_default=True,
     help="Containerlab topology file.",
 )
 @click.pass_obj
@@ -232,6 +246,7 @@ def stop(obj: dict, topology: dict) -> None:
     default="topology.clab.yml",
     type=click.File("r"),
     callback=_parse_topology,
+    show_default=True,
     help="Containerlab topology file.",
 )
 def init_ceos(obj: dict, topology: dict, token: Path) -> None:
@@ -253,11 +268,18 @@ def init_ceos(obj: dict, topology: dict, token: Path) -> None:
 @click.option(
     "--groups/--no-groups",
     default=False,
+    show_default=True,
     help="The template folder contains subfolders with Nornir group names",
 )
-def apply(obj: dict, folder: Path, groups: bool) -> None:
+@click.option(
+    "--replace/--merge",
+    default=False,
+    show_default=True,
+    help="Replace or merge the configuration on the device",
+)
+def apply(obj: dict, folder: Path, groups: bool, replace: bool) -> None:
     config.create_backups(obj["nornir"])
-    config.apply_templates(obj["nornir"], folder, groups=groups)
+    config.apply_templates(obj["nornir"], folder, replace=replace, groups=groups)
 
 
 @cli.command(help="Configure point-to-point interfaces")
@@ -271,7 +293,7 @@ def apply(obj: dict, folder: Path, groups: bool) -> None:
 )
 def interfaces(obj: dict, links: Path) -> None:
     config.create_backups(obj["nornir"])
-    config.configure_interfaces(obj["nornir"], links)
+    arista_lab.config.interfaces.configure(obj["nornir"], links)
 
 
 @cli.command(help="Configure peering devices")
@@ -288,7 +310,7 @@ def interfaces(obj: dict, links: Path) -> None:
 )
 def peering(obj: dict, group: str, backbone: str) -> None:
     config.create_backups(obj["nornir"].filter(F(groups__contains=group)))
-    config.configure_peering(obj["nornir"], group, backbone)
+    arista_lab.config.peering.configure(obj["nornir"], group, backbone)
 
 
 def main() -> None:

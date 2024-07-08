@@ -9,8 +9,9 @@ lab = 'arista_lab.cli:main'
 
 [tool.poetry.dependencies]
 python = "~3.12"
-click = "^8.1"
+click = "~8.1"
 PyYAML = "^6"
+rich = "~13.7"
 nornir-napalm = "^0.5"
 nornir-jinja2 = "^0.2"
 docker = "^7"
