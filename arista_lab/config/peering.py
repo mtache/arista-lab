@@ -10,8 +10,9 @@ from nornir.core.filter import F
 from rich.progress import Progress
 from arista_lab.console import _print_failed_tasks
 
-from nornir_napalm.plugins.tasks import napalm_configure, napalm_confirm_commit  # type: ignore[import-untyped]
 from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
+
+from . import _safe_push
 
 
 def configure(nornir: nornir.core.Nornir, group: str, neighbor_group: str) -> None:
@@ -89,14 +90,7 @@ def configure(nornir: nornir.core.Nornir, group: str, neighbor_group: str) -> No
 
             p = files(templates) / "peering"
             output = task.run(task=template_file, template="isp.j2", path=p, vars=vars)
-            r = task.run(
-                task=napalm_configure,
-                dry_run=False,
-                configuration=output.result,
-                revert_in=30,
-            )
-            r = task.run(task=napalm_confirm_commit)
-            bar.console.log(f"{task.host}: Peering with {task.nornir.inventory.groups[neighbor_group].data['network_name']}: {r.result}")
+            _safe_push(task, bar, config=output.result, title=f"Peering with {task.nornir.inventory.groups[neighbor_group].data['network_name']}")
             bar.update(task_id, advance=1)
 
         results = nornir.filter(F(groups__contains=group)).run(task=configure_peering)

@@ -9,6 +9,22 @@ from arista_lab.console import _print_failed_tasks
 from nornir_napalm.plugins.tasks import napalm_cli, napalm_configure, napalm_get, napalm_confirm_commit  # type: ignore[import-untyped]
 from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
 
+
+def _safe_push(task: Task, bar: Progress, *, config: str, title: str, replace: bool = False):
+    r = task.run(
+        task=napalm_configure,
+        dry_run=False,
+        replace=replace,
+        configuration=config,
+        revert_in=30,
+    )
+    if r.changed:
+        bar.console.log(f"{task.host}: {title}\n\t{r.diff.replace('\n', '\n\t')}")
+    r = task.run(task=napalm_confirm_commit)
+    if r.changed:
+        bar.console.log(f"{task.host}: {title}: {r.result}")
+
+
 #############
 # Templates #
 #############
@@ -52,17 +68,7 @@ def apply_templates(
                     hosts=nornir.inventory.hosts,
                     groups=nornir.inventory.groups,
                 )
-                r = task.run(
-                    task=napalm_configure,
-                    dry_run=False,
-                    replace=replace,
-                    configuration=output.result,
-                    revert_in=30,
-                )
-                if r.changed:
-                    bar.console.log(f"{task.host}: {template}\n{r.diff}")
-                r = task.run(task=napalm_confirm_commit)
-                bar.console.log(f"{task.host}: {template}: {r.result}")
+                _safe_push(task, bar, config=output.result, title=template, replace=replace)
                 bar.update(task_id, advance=1)
 
 

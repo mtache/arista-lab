@@ -10,9 +10,9 @@ from nornir.core.task import Task
 from rich.progress import Progress
 from arista_lab.console import _print_failed_tasks
 
-from nornir_napalm.plugins.tasks import napalm_configure, napalm_confirm_commit  # type: ignore[import-untyped]
 from nornir_jinja2.plugins.tasks import template_file  # type: ignore[import-untyped]
 
+from . import _safe_push
 
 def configure(nornir: nornir.core.Nornir, file: Path) -> None:
     DESCRIPTION_KEY = "description"
@@ -80,7 +80,6 @@ def configure(nornir: nornir.core.Nornir, file: Path) -> None:
         )
 
         def configure_interfaces(task: Task):
-            config = ""
             for interface, params in links[task.host.name].items():
                 p = files(templates) / "interfaces"
                 output = task.run(
@@ -89,17 +88,8 @@ def configure(nornir: nornir.core.Nornir, file: Path) -> None:
                     path=p,
                     interface={"name": interface, **params},
                 )
-                config += output.result
-                bar.console.log(
-                    f"{task.host}: Interface {interface} ({'IPv4' if IPV4_KEY in params else ''} {'IPv6' if IPV6_KEY in params else ''} {'ISIS' if ISIS_KEY in params else ''}): {params[DESCRIPTION_KEY]}"
-                )
+                _safe_push(task, bar, config=output.result, title=f"Interface {interface} ({'IPv4' if IPV4_KEY in params else ''} {'IPv6' if IPV6_KEY in params else ''} {'ISIS' if ISIS_KEY in params else ''}): {params[DESCRIPTION_KEY]}")
                 bar.update(task_id, advance=1)
-            r = task.run(
-                task=napalm_configure, dry_run=False, configuration=config, revert_in=30
-            )
-            r = task.run(task=napalm_confirm_commit)
-            bar.console.log(f"{task.host}: {r.result}")
-
 
         results = nornir.run(task=configure_interfaces)
         if results.failed:
