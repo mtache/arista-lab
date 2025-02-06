@@ -86,17 +86,6 @@ def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
         ctx.fail(f"Unable to initialize Nornir with config file '{value}': {str(exc)}")
 
 
-def _parse_topology(ctx: click.Context, param, value) -> dict:
-    try:
-        t = yaml.safe_load(value)
-        t.update({"_topology_path": value.name})
-        return t
-    except Exception as exc:
-        ctx.fail(
-            f"Unable to read Containerlab topology file '{value.name}': {str(exc)}"
-        )
-
-
 @click.group()
 @click.option(
     "-n",
@@ -132,10 +121,6 @@ def cli(ctx, nornir: nornir.core.Nornir, log_level: LogLevel, log_file: Path) ->
     ctx.obj["nornir"] = nornir
     setup_logging(log_level, log_file)
 
-
-# Backup on flash
-
-
 @cli.command(help="Create or delete device configuration backups to flash")
 @click.pass_obj
 @click.option(
@@ -156,10 +141,6 @@ def backup(obj: dict, delete: bool) -> None:
 def restore(obj: dict) -> None:
     config.restore_backups(obj["nornir"])
 
-
-# Backup locally
-
-
 @cli.command(help="Save configuration to a folder")
 @click.pass_obj
 @click.option(
@@ -171,7 +152,6 @@ def restore(obj: dict) -> None:
 )
 def save(obj: dict, folder: Path) -> None:
     config.save(obj["nornir"], folder)
-
 
 @cli.command(help="Load configuration from a folder")
 @click.pass_obj
@@ -191,70 +171,6 @@ def save(obj: dict, folder: Path) -> None:
 def load(obj: dict, folder: Path, replace: bool) -> None:
     config.create_backups(obj["nornir"])
     config.load(obj["nornir"], folder, replace=replace)
-
-
-# Containerlab
-
-
-@cli.command(help="Start containers")
-@click.option(
-    "-t",
-    "--topology",
-    "topology",
-    default="topology.clab.yml",
-    type=click.File("r"),
-    callback=_parse_topology,
-    show_default=True,
-    help="Containerlab topology file.",
-)
-@click.pass_obj
-def start(obj: dict, topology: dict) -> None:
-    docker.start(obj["nornir"], topology)
-
-
-@cli.command(help="Stop containers")
-@click.option(
-    "-t",
-    "--topology",
-    "topology",
-    default="topology.clab.yml",
-    type=click.File("r"),
-    callback=_parse_topology,
-    show_default=True,
-    help="Containerlab topology file.",
-)
-@click.pass_obj
-def stop(obj: dict, topology: dict) -> None:
-    docker.stop(obj["nornir"], topology)
-
-
-@cli.command(
-    help="Configure cEOS serial number, system MAC address and copy CloudVision token to flash"
-)
-@click.option(
-    "--token",
-    "token",
-    type=click.Path(exists=True, readable=True, path_type=Path),
-    required=False,
-    help="CloudVision onboarding token",
-)
-@click.pass_obj
-@click.option(
-    "-t",
-    "--topology",
-    "topology",
-    default="topology.clab.yml",
-    type=click.File("r"),
-    callback=_parse_topology,
-    show_default=True,
-    help="Containerlab topology file.",
-)
-def init_ceos(obj: dict, topology: dict, token: Path) -> None:
-    ceos.init_ceos_flash(obj["nornir"], topology, token)
-
-
-# Configuration
-
 
 @cli.command(help="Apply configuration templates")
 @click.pass_obj
@@ -281,7 +197,6 @@ def apply(obj: dict, folder: Path, groups: bool, replace: bool) -> None:
     config.create_backups(obj["nornir"])
     config.apply_templates(obj["nornir"], folder, replace=replace, groups=groups)
 
-
 @cli.command(help="Configure point-to-point interfaces")
 @click.pass_obj
 @click.option(
@@ -294,7 +209,6 @@ def apply(obj: dict, folder: Path, groups: bool, replace: bool) -> None:
 def interfaces(obj: dict, links: Path) -> None:
     config.create_backups(obj["nornir"])
     arista_lab.config.interfaces.configure(obj["nornir"], links)
-
 
 @cli.command(help="Configure peering devices")
 @click.pass_obj
