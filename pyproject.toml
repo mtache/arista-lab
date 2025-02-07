@@ -1,28 +1,36 @@
-[tool.poetry]
+[project]
 name = "arista-lab"
-version = "0.1.5"
+version = "0.2.4"
 description = "Simple tooling when working with EOS in labs"
-authors = ["Matthieu Tache <mtache@arista.com>"]
+authors = [{name="Matthieu Tâche", email="mtache@arista.com"}]
+requires-python = "~=3.12.0" # snappi has grpcio 1.59.5 as dependecy that prevent from building this project for Python 3.13 on macOS https://github.com/open-traffic-generator/snappi/issues/236 ; napalm is not Python 3.13 ready: https://github.com/napalm-automation/napalm/pull/2137
+dependencies = [
+    "click (~=8.1)",
+    "PyYAML (~=6)",
+    "rich (~=13.7)",
+    "nornir-napalm (~=0.5)",
+    "nornir-jinja2 (~=0.2)",
+    "requests (~=2.32)",
+    "snappi (~=1.25.2)",
+    # Using a submodule for snappi-ixnetwork until https://github.com/open-traffic-generator/snappi-ixnetwork/pull/588 is merged and https://github.com/open-traffic-generator/snappi-ixnetwork/issues/589
+    "ixnetwork-restpy>=1.0.52", # Required by snappi-ixnetwork
+]
 
-[tool.poetry.scripts]
+[tool.poetry]
+packages = [
+    { include = "arista_lab" },
+    { include = "snappi_ixnetwork", from = "snappi-ixnetwork" },
+]
+
+[project.scripts]
 lab = 'arista_lab.cli:main'
 
-[tool.poetry.dependencies]
-python = "~3.12"
-click = "~8.1"
-PyYAML = "^6"
-rich = "~13.7"
-nornir-napalm = "^0.5"
-nornir-jinja2 = "^0.2"
-docker = "^7"
-requests = "^2.32"
-openpyxl = "^3.1.2"
-
-[tool.poetry.dev-dependencies]
-mypy = "^1.8"
-types-PyYAML = "^6"
-types-requests = "^2.31"
-ruff = "^0.2"
+[tool.poetry.group.dev.dependencies]
+ ruff = "~=0.11"
+ mypy = "~=1.8"
+ types-requests = "~=2.31"
+ types-PyYAML = "~=6"
+ snappi-ixnetwork = { path = "snappi-ixnetwork" }
 
 [build-system]
 requires = ["poetry-core"]

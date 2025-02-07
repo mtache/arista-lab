@@ -1,0 +1,4 @@
+[submodule "snappi-ixnetwork"]
+	path = snappi-ixnetwork
+	url = git@github.com:mtache/snappi-ixnetwork.git
+	branch = logger

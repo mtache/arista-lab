@@ -1,3 +1,3 @@
 dist
-.vscode
-*.pyc
+build
+__pycache__
