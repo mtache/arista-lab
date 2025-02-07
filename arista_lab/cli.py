@@ -1,8 +1,8 @@
 from enum import Enum
+import pickle
 from typing import Literal
 import nornir
 import click
-import yaml
 import sys
 
 import logging
@@ -11,9 +11,12 @@ from pathlib import Path
 from nornir.core.filter import F
 from rich.logging import RichHandler
 
-from arista_lab import config, ceos, docker
+import arista_lab.config
+import arista_lab.traffic
 import arista_lab.config.interfaces
 import arista_lab.config.peering
+import snappi
+from datetime import datetime
 
 console = Console()
 
@@ -30,7 +33,6 @@ class Log(str, Enum):
 
 LogLevel = Literal[Log.CRITICAL, Log.ERROR, Log.WARNING, Log.INFO, Log.DEBUG]
 
-
 def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
     """Configure logging for Python.
 
@@ -44,14 +46,13 @@ def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
         file: Send logs to a file
 
     """
-    # Init root logger
-    root = logging.getLogger()
-    # In ANTA debug mode, level is overridden to DEBUG
+    # Get loggers
+    loggers = ["arista_lab", "snappi", "snappi_ixnetwork", "ixnetwork_restpy.connection", "pyeapi"]
     loglevel = getattr(logging, level.upper())
-    root.setLevel(loglevel)
+    for logger_name in loggers:
+        logging.getLogger(logger_name).setLevel(loglevel)
     # Silence the logging of chatty Python modules when level is INFO
     if loglevel == logging.INFO:
-        # asyncssh is really chatty
         logging.getLogger("pyeapi").setLevel(logging.CRITICAL)
     # Add RichHandler for stdout
     rich_handler = RichHandler(
@@ -65,7 +66,8 @@ def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
     )
     formatter = logging.Formatter(fmt=fmt_string, datefmt="[%X]")
     rich_handler.setFormatter(formatter)
-    root.addHandler(rich_handler)
+    for logger_name in loggers:
+        logging.getLogger(logger_name).addHandler(rich_handler)
     # Add FileHandler if file is provided
     if file:
         file_handler = logging.FileHandler(file)
@@ -73,18 +75,31 @@ def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         file_handler.setFormatter(formatter)
-        root.addHandler(file_handler)
+        for logger_name in loggers:
+            logging.getLogger(logger_name).addHandler(file_handler)
         # If level is DEBUG and file is provided, do not send DEBUG level to stdout
         if loglevel == logging.DEBUG:
             rich_handler.setLevel(logging.INFO)
 
 
-def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
+
+
+
+def _init_nornir(ctx: click.Context, param, value: Path) -> nornir.core.Nornir:
     try:
         return nornir.InitNornir(config_file=value, core={"raise_on_error": False})
     except Exception as exc:
         ctx.fail(f"Unable to initialize Nornir with config file '{value}': {str(exc)}")
 
+
+def _read_otg_config(ctx: click.Context, param, value: Path) -> snappi.Config:
+    try:
+        config = ctx.obj["snappi_api"].config()
+        with value.open(mode="r", encoding="UTF-8") as fd:
+            config.deserialize(fd.read())
+        return config
+    except Exception as exc:
+        ctx.fail(f"Unable to read OTG Configuration from file '{value}': {str(exc)}")
 
 @click.group()
 @click.option(
@@ -92,9 +107,10 @@ def _init_nornir(ctx: click.Context, param, value) -> nornir.core.Nornir:
     "--nornir",
     "nornir",
     default="nornir.yaml",
-    type=click.Path(exists=True),
+    type=click.Path(exists=True, readable=True, dir_okay=False, path_type=Path),
     callback=_init_nornir,
     show_default=True,
+    show_envvar=True,
     help="Nornir configuration in YAML format.",
 )
 @click.option(
@@ -131,15 +147,15 @@ def cli(ctx, nornir: nornir.core.Nornir, log_level: LogLevel, log_file: Path) ->
 )
 def backup(obj: dict, delete: bool) -> None:
     if delete:
-        config.delete_backups(obj["nornir"])
+        arista_lab.config.delete_backups(obj["nornir"])
     else:
-        config.create_backups(obj["nornir"])
+        arista_lab.config.create_backups(obj["nornir"])
 
 
 @cli.command(help="Restore configuration backups from flash")
 @click.pass_obj
 def restore(obj: dict) -> None:
-    config.restore_backups(obj["nornir"])
+    arista_lab.config.restore_backups(obj["nornir"])
 
 @cli.command(help="Save configuration to a folder")
 @click.pass_obj
@@ -151,7 +167,7 @@ def restore(obj: dict) -> None:
     help="Configuration backup folder",
 )
 def save(obj: dict, folder: Path) -> None:
-    config.save(obj["nornir"], folder)
+    arista_lab.config.save(obj["nornir"], folder)
 
 @cli.command(help="Load configuration from a folder")
 @click.pass_obj
@@ -169,8 +185,8 @@ def save(obj: dict, folder: Path) -> None:
     help="Replace or merge the configuration on the device",
 )
 def load(obj: dict, folder: Path, replace: bool) -> None:
-    config.create_backups(obj["nornir"])
-    config.load(obj["nornir"], folder, replace=replace)
+    arista_lab.config.create_backups(obj["nornir"])
+    arista_lab.config.load(obj["nornir"], folder, replace=replace)
 
 @cli.command(help="Apply configuration templates")
 @click.pass_obj
@@ -194,8 +210,10 @@ def load(obj: dict, folder: Path, replace: bool) -> None:
     help="Replace or merge the configuration on the device",
 )
 def apply(obj: dict, folder: Path, groups: bool, replace: bool) -> None:
-    config.create_backups(obj["nornir"])
-    config.apply_templates(obj["nornir"], folder, replace=replace, groups=groups)
+    arista_lab.config.create_backups(obj["nornir"])
+    arista_lab.config.apply_templates(
+        obj["nornir"], folder, replace=replace, groups=groups
+    )
 
 @cli.command(help="Configure point-to-point interfaces")
 @click.pass_obj
@@ -207,7 +225,7 @@ def apply(obj: dict, folder: Path, groups: bool, replace: bool) -> None:
     help="YAML File describing lab links",
 )
 def interfaces(obj: dict, links: Path) -> None:
-    config.create_backups(obj["nornir"])
+    arista_lab.config.create_backups(obj["nornir"])
     arista_lab.config.interfaces.configure(obj["nornir"], links)
 
 @cli.command(help="Configure peering devices")
@@ -223,13 +241,106 @@ def interfaces(obj: dict, links: Path) -> None:
     help="Nornir group of the backbone",
 )
 def peering(obj: dict, group: str, backbone: str) -> None:
-    config.create_backups(obj["nornir"].filter(F(groups__contains=group)))
+    arista_lab.config.create_backups(obj["nornir"].filter(F(groups__contains=group)))
     arista_lab.config.peering.configure(obj["nornir"], group, backbone)
 
 
+@cli.group(help="Control traffic generator")
+@click.option(
+    "--otg-api",
+    "otg_api",
+    type=str,
+    required=True,
+    show_envvar=True,
+    help="Open Traffic Generator server",
+)
+@click.option(
+    "--extension",
+    "snappi_extension",
+    type=click.Choice(["ixnetwork"]),
+    show_envvar=True,
+    help="Snappi Extension to use. Supported extension is 'ixnetwork'.",
+)
+@click.option(
+    "--session",
+    "session",
+    type=click.Path(dir_okay=False, readable=True, path_type=Path),
+    default=f"snappi-api-session_{datetime.now().astimezone().strftime('%Y-%m-%d_%H_%M_%S')}.pk",
+    show_envvar=True,
+    help="Snappi API session is saved as a file for persistence.",
+)
+@click.pass_obj
+def traffic(
+    obj: dict, otg_api: str, snappi_extension: Literal["ixnetwork"] | None, session: Path
+) -> None:
+    obj["snappi_api"] = snappi.api(
+            location=otg_api,
+            ext=snappi_extension,
+            logger=logging.Logger(snappi.__name__),
+        )
+    obj["snappi_session"] = session
+    if session.exists():
+        with session.open(mode="rb") as fd:
+            config = pickle.load(fd)
+            obj["snappi_api"]._config = config
+
+
+
+@traffic.command(help="Configure traffic generator")
+@click.argument(
+    "config",
+    default="otg.yaml",
+    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+    callback=_read_otg_config,
+)
+@click.pass_obj
+def configure(
+    obj: dict,
+    config: snappi.Config,
+) -> None:
+    arista_lab.traffic.configure(api=obj["snappi_api"], config=config)
+    pickle.dump(
+        obj["snappi_api"].snappi_config, obj["snappi_session"].open(mode="wb"))
+
+
+
+@traffic.command(help="Start the flows on the traffic generator")
+@click.pass_obj
+def start(
+    obj: dict,
+) -> None:
+    if obj["snappi_api"].snappi_config is None:
+        console.print("No Snappi API session found. Please provide a valid session using the --session option.")
+        return
+    arista_lab.traffic.start(api=obj["snappi_api"])
+
+@traffic.command(help="Stop the flows on the traffic generator")
+@click.pass_obj
+def stop(
+    obj: dict,
+) -> None:
+    if obj["snappi_api"].snappi_config is None:
+        console.print(
+            "No Snappi API session found. Please provide a valid session using the --session option."
+        )
+        return
+    arista_lab.traffic.stop(api=obj["snappi_api"])
+
+@traffic.command(help="Get the flow statistics from the traffic generatorr")
+@click.pass_obj
+def stats(
+    obj: dict,
+) -> None:
+    if obj["snappi_api"].snappi_config is None:
+        console.print(
+            "No Snappi API session found. Please provide a valid session using the --session option."
+        )
+        return
+    arista_lab.traffic.stats(api=obj["snappi_api"])
+
 def main() -> None:
     try:
-        sys.exit(cli(max_content_width=120))
+        sys.exit(cli(auto_envvar_prefix="LAB"))
     except Exception:
         console.print_exception()
         sys.exit(1)
