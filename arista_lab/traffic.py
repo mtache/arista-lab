@@ -30,8 +30,6 @@ def _get_traffic_stats(api: snappi.Api) -> tuple[list, list]:
         flow_stats = []
     return port_stats, flow_stats
 
-
-
 def _print_traffic_stats(
     port_stats=None,
     flow_stats=None,

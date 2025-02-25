@@ -16,7 +16,6 @@ import arista_lab.traffic
 import arista_lab.config.interfaces
 import arista_lab.config.peering
 import snappi
-from datetime import datetime
 
 console = Console()
 
@@ -245,6 +244,8 @@ def peering(obj: dict, group: str, backbone: str) -> None:
     arista_lab.config.peering.configure(obj["nornir"], group, backbone)
 
 
+snappi_session_file = Path("./.snappi-api-session.pk")
+
 @cli.group(help="Control traffic generator")
 @click.option(
     "--otg-api",
@@ -261,30 +262,19 @@ def peering(obj: dict, group: str, backbone: str) -> None:
     show_envvar=True,
     help="Snappi Extension to use. Supported extension is 'ixnetwork'.",
 )
-@click.option(
-    "--session",
-    "session",
-    type=click.Path(dir_okay=False, readable=True, path_type=Path),
-    default=f"snappi-api-session_{datetime.now().astimezone().strftime('%Y-%m-%d_%H_%M_%S')}.pk",
-    show_envvar=True,
-    help="Snappi API session is saved as a file for persistence.",
-)
 @click.pass_obj
 def traffic(
-    obj: dict, otg_api: str, snappi_extension: Literal["ixnetwork"] | None, session: Path
+    obj: dict, otg_api: str, snappi_extension: Literal["ixnetwork"] | None,
 ) -> None:
     obj["snappi_api"] = snappi.api(
             location=otg_api,
             ext=snappi_extension,
             logger=logging.Logger(snappi.__name__),
         )
-    obj["snappi_session"] = session
-    if session.exists():
-        with session.open(mode="rb") as fd:
+    if snappi_session_file.exists():
+        with snappi_session_file.open(mode="rb") as fd:
             config = pickle.load(fd)
             obj["snappi_api"]._config = config
-
-
 
 @traffic.command(help="Configure traffic generator")
 @click.argument(
@@ -299,10 +289,7 @@ def configure(
     config: snappi.Config,
 ) -> None:
     arista_lab.traffic.configure(api=obj["snappi_api"], config=config)
-    pickle.dump(
-        obj["snappi_api"].snappi_config, obj["snappi_session"].open(mode="wb"))
-
-
+    pickle.dump(obj["snappi_api"].snappi_config, snappi_session_file.open(mode="wb"))
 
 @traffic.command(help="Start the flows on the traffic generator")
 @click.pass_obj
@@ -310,7 +297,7 @@ def start(
     obj: dict,
 ) -> None:
     if obj["snappi_api"].snappi_config is None:
-        console.print("No Snappi API session found. Please provide a valid session using the --session option.")
+        console.print("No Snappi API session found. Run 'lab traffic configure' first.")
         return
     arista_lab.traffic.start(api=obj["snappi_api"])
 
@@ -320,9 +307,7 @@ def stop(
     obj: dict,
 ) -> None:
     if obj["snappi_api"].snappi_config is None:
-        console.print(
-            "No Snappi API session found. Please provide a valid session using the --session option."
-        )
+        console.print("No Snappi API session found. Run 'lab traffic configure' first.")
         return
     arista_lab.traffic.stop(api=obj["snappi_api"])
 
@@ -332,9 +317,7 @@ def stats(
     obj: dict,
 ) -> None:
     if obj["snappi_api"].snappi_config is None:
-        console.print(
-            "No Snappi API session found. Please provide a valid session using the --session option."
-        )
+        console.print("No Snappi API session found. Run 'lab traffic configure' first.")
         return
     arista_lab.traffic.stats(api=obj["snappi_api"])
 
