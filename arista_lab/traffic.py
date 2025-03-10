@@ -15,7 +15,7 @@ def configure(
     try:
         api.set_config(config)
     except Exception as e:
-        logger.error(e.__context__) # snappi_ixnetwork.exceptions.IxNetworkException wraps the real exception
+        logger.error(e)
 
 def _get_traffic_stats(api: snappi.Api) -> tuple[list, list]:
     request = api.metrics_request()
@@ -128,9 +128,12 @@ def start(api: snappi.Api) -> None:
     control_state.choice = control_state.TRAFFIC
     control_state.traffic.choice = control_state.traffic.FLOW_TRANSMIT
     control_state.traffic.flow_transmit.state = control_state.traffic.flow_transmit.START
-    res = api.set_control_state(control_state)
-    for warning in res.warnings:
-        logger.warning(warning)
+    try:
+        res = api.set_control_state(control_state)
+    except Exception as e:
+        logger.error(e)
+        for warning in res.warnings:
+            logger.warning(warning)
 
 def stop(api: snappi.Api) -> None:
     """Stop the flows on the traffic generator"""
@@ -140,9 +143,12 @@ def stop(api: snappi.Api) -> None:
     control_state.traffic.flow_transmit.state = (
         control_state.traffic.flow_transmit.STOP
     )
-    res = api.set_control_state(control_state)
-    for warning in res.warnings:
-        logger.warning(warning)
+    try:
+        res = api.set_control_state(control_state)
+    except Exception as e:
+        logger.error(e)
+        for warning in res.warnings:
+            logger.warning(warning)
 
 def stats(api: snappi.Api) -> None:
     port_stats, flow_stats = _get_traffic_stats(api)

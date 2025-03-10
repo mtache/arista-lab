@@ -57,7 +57,7 @@ def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
     rich_handler = RichHandler(rich_tracebacks=True, tracebacks_show_locals=False)
     # Show Python module in stdout at DEBUG level
     fmt_string = (
-        "[grey58]\\[%(name)s][/grey58] %(message)s"
+        "[%(name)s] %(message)s"
         if loglevel == logging.DEBUG
         else "%(message)s"
     )
