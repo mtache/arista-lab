@@ -12,7 +12,10 @@ def configure(
     config: snappi.Config,
 ) -> None:
     """Configure the flows on the traffic generator"""
-    api.set_config(config)
+    try:
+        api.set_config(config)
+    except Exception as e:
+        logger.error(e.__context__) # snappi_ixnetwork.exceptions.IxNetworkException wraps the real exception
 
 def _get_traffic_stats(api: snappi.Api) -> tuple[list, list]:
     request = api.metrics_request()

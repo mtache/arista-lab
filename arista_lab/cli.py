@@ -54,9 +54,7 @@ def setup_logging(level: LogLevel = Log.INFO, file: Path | None = None) -> None:
     if loglevel == logging.INFO:
         logging.getLogger("pyeapi").setLevel(logging.CRITICAL)
     # Add RichHandler for stdout
-    rich_handler = RichHandler(
-        markup=True, rich_tracebacks=True, tracebacks_show_locals=False
-    )
+    rich_handler = RichHandler(rich_tracebacks=True, tracebacks_show_locals=False)
     # Show Python module in stdout at DEBUG level
     fmt_string = (
         "[grey58]\\[%(name)s][/grey58] %(message)s"
