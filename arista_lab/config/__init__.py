@@ -2,7 +2,7 @@ from pathlib import Path
 from os import walk
 
 import nornir
-from nornir.core.task import Task
+from nornir.core.task import Task, Result
 from rich.progress import Progress
 from arista_lab.console import _print_failed_tasks
 
@@ -24,6 +24,17 @@ def _safe_push(task: Task, bar: Progress, *, config: str, title: str, replace: b
     if r.changed:
         bar.console.log(f"{task.host}: {title}: {r.result}")
 
+def wait_for_device(task: Task, bar: Progress, wait_for: int = 0):
+    for i in range(wait_for):
+        bar.console.log(f"Waiting for {task.host}: attempt {i + 1}/{wait_for}...")
+        r = task.nornir.run(task=napalm_cli, raise_on_error=False, commands=["show version"])
+        if r.failed:
+            bar.console.log(f"Attempt {i + 1} failed: {r[str(task.host)][0]}")
+            continue
+        else:
+            bar.console.log(f"{task.host}: Device is up")
+            return
+    return Result(host=task.host, failed=True, result="Failed to wait for device to be up")
 
 #############
 # Templates #
@@ -86,13 +97,15 @@ DIR_FLASH_CMD = "dir flash:"
 BACKUP_FILENAME = "rollback-config"
 
 
-def create_backups(nornir: nornir.core.Nornir) -> None:
+def create_backups(nornir: nornir.core.Nornir, wait_for: int = 0) -> None:
     with Progress() as bar:
         task_id = bar.add_task(
             "Backup configuration to flash", total=len(nornir.inventory.hosts)
         )
 
         def create_backup(task: Task):
+            if wait_for:
+                task.run(task=wait_for_device, bar=bar, wait_for=wait_for)
             r = task.run(task=napalm_cli, commands=[DIR_FLASH_CMD])
             for res in r:
                 if BACKUP_FILENAME in res.result[DIR_FLASH_CMD]:
