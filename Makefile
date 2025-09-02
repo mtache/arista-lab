@@ -1,6 +1,6 @@
 editable:
 	pip cache purge
-	PIPX_DEFAULT_PYTHON=$(which python) pipx install -e .
+	PIPX_DEFAULT_PYTHON=$$(which python) pipx install -e .
 
 update:
 	poetry update

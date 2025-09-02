@@ -99,17 +99,6 @@ def _read_otg_config(ctx: click.Context, param, value: Path) -> snappi.Config:
 
 @click.group()
 @click.option(
-    "-n",
-    "--nornir",
-    "nornir",
-    default="nornir.yaml",
-    type=click.Path(exists=True, readable=True, dir_okay=False, path_type=Path),
-    callback=_init_nornir,
-    show_default=True,
-    show_envvar=True,
-    help="Nornir configuration in YAML format.",
-)
-@click.option(
     "--log-file",
     help="Send the logs to a file. If logging level is DEBUG, only INFO or higher will be sent to stdout.",
     show_envvar=True,
@@ -127,13 +116,44 @@ def _read_otg_config(ctx: click.Context, param, value: Path) -> snappi.Config:
         case_sensitive=False,
     ),
 )
-@click.pass_context
-def cli(ctx, nornir: nornir.core.Nornir, log_level: LogLevel, log_file: Path) -> None:
-    ctx.ensure_object(dict)
-    ctx.obj["nornir"] = nornir
+def cli(log_level: LogLevel, log_file: Path) -> None:
+    """Arista Lab CLI"""
     setup_logging(log_level, log_file)
 
-@cli.command(help="Create or delete device configuration backups to flash")
+##########################
+# Configuration commands #
+##########################
+
+@cli.group(help="Manage device configuration")
+@click.option(
+    "-n",
+    "--nornir",
+    "nornir",
+    default="nornir.yaml",
+    type=click.Path(exists=True, readable=True, dir_okay=False, path_type=Path),
+    callback=_init_nornir,
+    show_default=True,
+    show_envvar=True,
+    help="Nornir configuration in YAML format.",
+)
+@click.option(
+    "--wait-for",
+    "wait_for",
+    type=int,
+    required=False,
+    help="Number of attempts to wait for the device to be ready. The maximum waited time is Attempts * Timeout (default 60s).",
+)
+@click.pass_context
+def config(
+    ctx: click.Context,
+    nornir: nornir.core.Nornir,
+    wait_for: int
+) -> None:
+    ctx.ensure_object(dict)
+    ctx.obj["nornir"] = nornir
+    ctx.obj["wait_for"] = wait_for
+
+@config.command(help="Create or delete device configuration backups to flash")
 @click.pass_obj
 @click.option(
     "--delete/--no-delete",
@@ -145,33 +165,35 @@ def backup(obj: dict, delete: bool) -> None:
     if delete:
         arista_lab.config.delete_backups(obj["nornir"])
     else:
-        arista_lab.config.create_backups(obj["nornir"])
+        arista_lab.config.create_backups(obj["nornir"], wait_for=obj["wait_for"])
 
 
-@cli.command(help="Restore configuration backups from flash")
+@config.command(help="Restore configuration backups from flash")
 @click.pass_obj
 def restore(obj: dict) -> None:
     arista_lab.config.restore_backups(obj["nornir"])
 
-@cli.command(help="Save configuration to a folder")
+@config.command(help="Save configuration to a folder")
 @click.pass_obj
 @click.option(
     "--folder",
     "folder",
     type=click.Path(writable=True, path_type=Path),
-    required=True,
+    default="configs",
+    show_default=True,
     help="Configuration backup folder",
 )
 def save(obj: dict, folder: Path) -> None:
     arista_lab.config.save(obj["nornir"], folder)
 
-@cli.command(help="Load configuration from a folder")
+@config.command(help="Load configuration from a folder")
 @click.pass_obj
 @click.option(
     "--folder",
     "folder",
     type=click.Path(writable=True, path_type=Path),
-    required=True,
+    default="configs",
+    show_default=True,
     help="Configuration backup folder",
 )
 @click.option(
@@ -181,10 +203,10 @@ def save(obj: dict, folder: Path) -> None:
     help="Replace or merge the configuration on the device",
 )
 def load(obj: dict, folder: Path, replace: bool) -> None:
-    arista_lab.config.create_backups(obj["nornir"])
+    arista_lab.config.create_backups(obj["nornir"], wait_for=obj["wait_for"])
     arista_lab.config.load(obj["nornir"], folder, replace=replace)
 
-@cli.command(help="Apply configuration templates")
+@config.command(help="Apply configuration templates")
 @click.pass_obj
 @click.option(
     "--folder",
@@ -206,12 +228,16 @@ def load(obj: dict, folder: Path, replace: bool) -> None:
     help="Replace or merge the configuration on the device",
 )
 def apply(obj: dict, folder: Path, groups: bool, replace: bool) -> None:
-    arista_lab.config.create_backups(obj["nornir"])
+    arista_lab.config.create_backups(obj["nornir"], wait_for=obj["wait_for"])
     arista_lab.config.apply_templates(
         obj["nornir"], folder, replace=replace, groups=groups
     )
 
-@cli.command(help="Configure point-to-point interfaces")
+##################################
+# Configuration scripts commands #
+##################################
+
+@config.command(help="Configure point-to-point interfaces")
 @click.pass_obj
 @click.option(
     "--links",
@@ -221,10 +247,10 @@ def apply(obj: dict, folder: Path, groups: bool, replace: bool) -> None:
     help="YAML File describing lab links",
 )
 def interfaces(obj: dict, links: Path) -> None:
-    arista_lab.config.create_backups(obj["nornir"])
+    arista_lab.config.create_backups(obj["nornir"], wait_for=obj["wait_for"])
     arista_lab.config.interfaces.configure(obj["nornir"], links)
 
-@cli.command(help="Configure peering devices")
+@config.command(help="Configure peering devices")
 @click.pass_obj
 @click.option(
     "--group", "group", type=str, required=True, help="Nornir group of peering devices"
@@ -237,8 +263,15 @@ def interfaces(obj: dict, links: Path) -> None:
     help="Nornir group of the backbone",
 )
 def peering(obj: dict, group: str, backbone: str) -> None:
+    arista_lab.config.create_backups(
+        obj["nornir"].filter(F(groups__contains=group)), wait_for=obj["wait_for"]
+    )
     arista_lab.config.create_backups(obj["nornir"].filter(F(groups__contains=group)))
     arista_lab.config.peering.configure(obj["nornir"], group, backbone)
+
+##############################
+# Traffic generator commands #
+##############################
 
 @cli.group(help="Control traffic generator")
 @click.option(
