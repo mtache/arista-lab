@@ -10,7 +10,16 @@ def _print_failed_tasks(bar: Progress, results: AggregatedResult) -> None:
                 if isinstance(r.exception, NornirSubTaskError):
                     # Do not display NornirSubTaskError
                     continue
-                bar.console.log(
-                    f"Task failed for device {host}: {r.exception.__class__.__name__}"
-                )
-                bar.console.log(r.exception)
+                if r.exception is not None:
+                    bar.console.log(
+                        f"Task {multi_results.name}/{r.name} failed for device {host}: {r.exception.__class__.__name__}"
+                    )
+                    bar.console.log(r.exception)
+                elif r.result is not None:
+                    bar.console.log(
+                        f"Task {multi_results.name}/{r.name} failed for device {host}: {r.result}"
+                    )
+                else:
+                    bar.console.log(
+                        f"Task {multi_results.name}/{r.name} failed for device {host}"
+                    )
